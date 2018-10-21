@@ -44,7 +44,7 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
 
     detail::DocumentNodePtr root(new detail::DocumentNode(*this)) ;
 
-  //  parser.parse(root, resource) ;
+    parser.parse(root, resource) ;
 
     if ( caching_ ) g_cache.add(resource, root) ;
 

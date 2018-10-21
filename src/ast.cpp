@@ -100,7 +100,7 @@ Variant IdentifierNode::eval(Context &ctx)
         })) ;
     }
     else*/ {
-        return ctx.get(name_) ;
+        return ctx.data().at(name_) ;
         /*
         auto it = ctx.data().find(name_) ;
         if ( it == ctx.data().end() ) return Variant::undefined() ;
@@ -198,7 +198,7 @@ Variant DictionaryNode::eval(Context &ctx)
 {
     Variant::Object o ;
 
-    for ( key_val_t &kv: elements_ ) {
+    for ( auto &kv: elements_ ) {
         o.insert({kv.first, kv.second->eval(ctx)}) ;
     }
 
@@ -208,7 +208,13 @@ Variant DictionaryNode::eval(Context &ctx)
 Variant SubscriptIndexingNode::eval(Context &ctx)
 {
     Variant index = index_->eval(ctx) ;
-    Variant a = array_->eval(ctx) ;
+
+    Variant a ;
+    size_t pos = array_.find('.') ;
+    if ( pos == string::npos )
+        a = ctx.data()[array_] ;
+    else
+        a = ctx.data()[array_.substr(0, pos)].at(array_.substr(pos+1)) ;
 
     if ( index.isString() )
         return a.at(index.toString()) ;
@@ -218,6 +224,7 @@ Variant SubscriptIndexingNode::eval(Context &ctx)
 
 Variant AttributeIndexingNode::eval(Context &ctx)
 {
+
     Variant o = dict_->eval(ctx) ;
     return o.at(key_) ;
 }
@@ -361,7 +368,7 @@ void FilterBlockNode::eval(Context &ctx, string &res) const
 
 Variant InvokeFunctionNode::eval(Context &ctx)
 {
-    Variant f = callable_->eval(ctx) ;
+    Variant f = ctx.get(callable_) ;
 
     Variant args ;
     evalArgs(args_, args, ctx) ;

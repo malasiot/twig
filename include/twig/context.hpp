@@ -30,8 +30,13 @@ public:
     }
 
     const Variant &get(const std::string &key) {
-        return data_.at(key) ;
-    } ;
+        Variant a ;
+        size_t pos = key.find('.') ;
+        if ( pos == std::string::npos )
+            return data_[key] ;
+        else
+            return data_[key.substr(0, pos)].at(key.substr(pos+1));
+    }
 
     void addBlock(detail::NamedBlockNodePtr node) ;
 

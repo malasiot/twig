@@ -1,4 +1,4 @@
-// twig parser
+﻿// twig parser
 #include <string>
 #include <fstream>
 
@@ -47,31 +47,61 @@ private:
         size_t line_ = 1;
     } ;
 
+    struct Token {
+        enum Type { LiteralString, LiteralDouble, LiteralInteger, LiteralBoolean, Name,
+                    Raw, StartSubTag, EndSubTag, StartBlockTag, EndBlockTag } ;
+        Position begin_, end_ ;
+
+        Variant val_{} ;
+        Type type_ ;
+
+    };
+
     const std::string &src_ ;
     Position pos_ ;
+    std::deque<ContainerNodePtr> stack_ ;
+
 
 private:
+
 
     void skipSpace() ;
     bool expect(char c) ;
     bool expect(const char *str) ;
+
+    void nextToken() ;
 
     bool parseString(std::string &val) ;
     bool parseNumber(std::string &val) ;
     bool parseInteger(int64_t &val) ;
     bool parseDouble(double &val) ;
     bool parseName(std::string &name) ;
-    ContainerNodePtr parseControlTag() ;
-    ContainerNodePtr parseControlTagDeclaration() ;
+    bool parseIdentifier(std::string &name) ;
+    void parseControlTag() ;
+    void parseControlTagDeclaration() ;
     ContentNodePtr parseSubstitutionTag() ;
     ContentNodePtr parseRaw() ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
+    NodePtr parseFactor() ;
+    NodePtr parsePrimary() ;
+    NodePtr parseVariable() ;
+    NodePtr parseArray() ;
+    NodePtr parseObject() ;
+    NodePtr parseBoolean() ;
+    NodePtr parseNull() ;
+    bool parseKeyValuePair(std::string &key, NodePtr &val);
+    bool parseFunctionArg(key_val_t &arg);
+
+    void pushControlBlock(ContainerNodePtr node) ;
+    void popControlBlock(const char *tag_name);
+    void addNode(ContentNodePtr node) ;
 
     bool decodeUnicode(uint &cp) ;
     static std::string unicodeToUTF8(uint cp) ;
 
     [[noreturn]] void  throwException(const std::string msg) ;
+
 };
 
 /*

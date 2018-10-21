@@ -34,7 +34,7 @@ public:
 };
 
 using key_val_t = std::pair<std::string, NodePtr> ;
-using key_val_list_t = std::deque<key_val_t> ;
+using key_val_list_t = std::vector<key_val_t> ;
 using identifier_list_t = std::deque<std::string> ;
 using key_alias_t = std::pair<std::string, std::string> ;
 using key_alias_list_t = std::deque<key_alias_t> ;
@@ -62,13 +62,13 @@ private:
 class ArrayNode: public Node {
 public:
     ArrayNode() = default ;
-    ArrayNode(const std::deque<NodePtr> &&elements): elements_(elements) {}
+    ArrayNode(const std::vector<NodePtr> &&elements): elements_(elements) {}
 
     Variant eval(Context &ctx) ;
 
 private:
 
-    std::deque<NodePtr> elements_ ;
+    std::vector<NodePtr> elements_ ;
 };
 
 class ContainmentNode: public Node {
@@ -100,34 +100,35 @@ class DictionaryNode: public Node {
 public:
 
     DictionaryNode() = default ;
-    DictionaryNode(const key_val_list_t && elements): elements_(elements) {}
+    DictionaryNode(const std::map<std::string, NodePtr> && elements): elements_(elements) {}
 
     Variant eval(Context &ctx) ;
 
 private:
-    key_val_list_t elements_ ;
+    std::map<std::string, NodePtr> elements_ ;
 };
 
 
 class SubscriptIndexingNode: public Node {
 public:
-    SubscriptIndexingNode(NodePtr array, NodePtr index): array_(array), index_(index) {}
+    SubscriptIndexingNode(const std::string &array, NodePtr index): array_(array), index_(index) {}
 
     Variant eval(Context &ctx) ;
 
 private:
-    NodePtr array_, index_ ;
+    std::string array_ ;
+    NodePtr index_ ;
 };
 
 class AttributeIndexingNode: public Node {
 public:
-    AttributeIndexingNode(NodePtr dict, const std::string &key): dict_(dict), key_(key) {}
+    AttributeIndexingNode(const std::string &key, const NodePtr &dict): dict_(dict), key_(key) {}
 
     Variant eval(Context &ctx) ;
 
 private:
     NodePtr dict_ ;
-    std::string key_ ;
+    std::string  key_ ;
 };
 
 class BinaryOperator: public Node {
@@ -232,13 +233,14 @@ private:
 
 class InvokeFunctionNode: public Node {
 public:
-    InvokeFunctionNode(NodePtr callable, key_val_list_t &&args = {}): callable_(callable), args_(args) {}
+    InvokeFunctionNode(const std::string &callable, const key_val_list_t &&args = {}):
+        callable_(callable), args_(args) {}
 
     Variant eval(Context &ctx) ;
 
 
 private:
-    NodePtr callable_ ;
+    std::string callable_ ;
     key_val_list_t args_ ;
 };
 
@@ -260,7 +262,11 @@ public:
         return reinterpret_cast<const DocumentNode *>(node) ;
     }
 
+    void setTrimLeft(bool s) { trim_left_ = s ; }
+    void setTrimRight(bool s) { trim_right_ = s ; }
+
     ContentNode *parent_ = nullptr ;
+    bool trim_left_ = false, trim_right_ = false ;
 };
 
 typedef std::shared_ptr<ContentNode> ContentNodePtr ;
@@ -304,13 +310,14 @@ public:
 class NamedBlockNode: public ContainerNode {
 public:
 
-    NamedBlockNode(const std::string &name): name_(name) {}
+    NamedBlockNode(const std::string &name, NodePtr expr): name_(name), expr_(expr) {}
 
     void eval(Context &ctx, std::string &res) const override ;
 
     std::string tagName() const override { return "block" ; }
 
     std::string name_ ;
+    NodePtr expr_ ;
 };
 
 typedef std::shared_ptr<NamedBlockNode> NamedBlockNodePtr ;
@@ -485,11 +492,13 @@ class SubstitutionBlockNode: public ContentNode {
 public:
     using Ptr = std::shared_ptr<SubstitutionBlockNode> ;
 
-    SubstitutionBlockNode(NodePtr expr): expr_(expr), ContentNode() {}
+    SubstitutionBlockNode(NodePtr expr, bool trim_left, bool trim_right):
+        expr_(expr), trim_left_(trim_left), trim_right_(trim_right) {}
 
     void eval(Context &ctx, std::string &res) const override;
 
     NodePtr expr_ ;
+    bool trim_left_, trim_right_ ;
 };
 
 

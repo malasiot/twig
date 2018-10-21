@@ -41,7 +41,7 @@ public:
 
     // constructors
 
-    Variant(): tag_(Type::Null) {}
+    Variant(): tag_(Type::Undefined) {}
 
     Variant(boolean_t v) noexcept : tag_(Type::Boolean) { data_.b_ = v ; }
 

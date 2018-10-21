@@ -6,7 +6,7 @@ using namespace std ;
 using namespace twig ;
 
 const string msg = R"(
-hello {{ 1 + 2 * 3 }} and {% block xx %} and {% endblock %}
+hello {{ a.x[2] + f(a = 1, b = 2) }} and {% block xx %} and {% endblock %}
 )";
 
 class StringTemplateLoader: public TemplateLoader {
@@ -25,7 +25,9 @@ int main(int argc, char *argv[]) {
     TemplateRenderer rdr(make_shared<StringTemplateLoader>(msg)) ;
 
     try {
-        rdr.render("--", Variant::Object{{ "data" , "ok"}}) ;
+        cout << rdr.render("--", Variant::Object{{ "a" , Variant::Object{{ "x", Variant::Array{{ 2, 3, 4, 5}} }} },
+                                                 {"f", Variant::Function([&](const Variant &v)->Variant {
+                                                      return 3;})}}) << endl;
     }
     catch ( TemplateCompileException  &e ) {
         cout << e.what() << endl ;
