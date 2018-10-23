@@ -6,7 +6,7 @@ using namespace std ;
 using namespace twig ;
 
 const string msg = R"(
-hello {{ a.x[2] + f(a = 1, b = 2) }} and {% block xx %} and {% endblock %}
+hello {% if a.x[2] > 3 %} if {% else %} else {% endif %}
 )";
 
 class StringTemplateLoader: public TemplateLoader {

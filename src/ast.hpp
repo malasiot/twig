@@ -86,7 +86,8 @@ private:
 
 class MatchesNode: public Node {
 public:
-    MatchesNode(NodePtr lhs, const std::string &rx, bool positive) ;
+    MatchesNode(NodePtr lhs, const std::string &rx, bool positive):
+        lhs_(lhs), rx_(rx), positive_(positive) {}
 
     Variant eval(Context &ctx) ;
 
@@ -145,7 +146,7 @@ private:
 
 class BooleanOperator: public Node {
 public:
-    enum Type { And, Or, Not } ;
+    enum Type { And, Or } ;
 
     BooleanOperator(Type op, NodePtr lhs, NodePtr rhs): op_(op), lhs_(lhs), rhs_(rhs) {}
 
@@ -153,6 +154,15 @@ public:
 private:
     Type op_ ;
     NodePtr lhs_, rhs_ ;
+};
+
+class BooleanNegationOperator: public Node {
+public:
+    BooleanNegationOperator(NodePtr node): node_(node) {}
+
+    Variant eval(Context &ctx) ;
+private:
+    NodePtr node_ ;
 };
 
 class UnaryOperator: public Node {

@@ -18,12 +18,12 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             Position cur(pos_) ;
             c = *pos_++ ;
             if ( c == '{' ) {
-               auto n = parseSubstitutionTag() ;
-               addNode(n) ;
+                auto n = parseSubstitutionTag() ;
+                addNode(n) ;
 
             }
             else if ( c == '%' ) {
-               parseControlTag() ;
+                parseControlTag() ;
             }
             else {
                 pos_ = cur ;
@@ -253,7 +253,7 @@ bool Parser::parseIdentifier(string &name)
         if ( expect('.') ) {
             name += '.' ;
             continue ;
-        }
+        } else break ;
     }
 
     return !name.empty() ;
@@ -292,10 +292,10 @@ void  Parser::parseControlTag() {
         trim_right = true ;
 
     if ( !expect("%}") )
-         throwException("Tag not closed while parsing block") ;
+        throwException("Tag not closed while parsing block") ;
 
- //   e->setTrimLeft(trim_left) ;
- //   e->setTrimRight(trim_right) ;
+    //   e->setTrimLeft(trim_left) ;
+    //   e->setTrimRight(trim_right) ;
 }
 
 void Parser::parseControlTagDeclaration() {
@@ -312,8 +312,137 @@ void Parser::parseControlTagDeclaration() {
 
 
     } else if ( expect("endblock") ) {
+        string name ;
+        parseName(name) ;
         popControlBlock("block") ;
+    } else if ( expect("for") ) {
+        identifier_list_t ids ;
+        if ( !parseNameList(ids) )
+            throwException("identifier list expected") ;
+        if ( !expect("in") )
+            throwException("'in' keyword expected") ;
+        auto e = parseExpression() ;
+        if ( !e )
+            throwException("missing for loop expression") ;
+
+        NodePtr c ;
+        if ( expect("if") )
+            c = parseConditional() ;
+
+        auto n = make_shared<ForLoopBlockNode>(std::move(ids), e, c);
+        addNode(n) ;
+        pushControlBlock(n) ;
+    } else if ( expect("endfor") ) {
+        popControlBlock("for") ;
+    } else if ( expect("else") ) {
+        if ( ForLoopBlockNode *p = dynamic_cast<ForLoopBlockNode *>(stack_.back().get()) )
+            p->startElseBlock() ;
+        else if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
+            p->addBlock(nullptr) ;
+    } else if ( expect("elif") ) {
+        auto e = parseConditional() ;
+        if ( !e )
+            throwException("expecting conditional expression") ;
+        if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
+            p->addBlock(e) ;
+    } else if ( expect("endif") ) {
+        popControlBlock("if") ;
+    } else if ( expect("if") ) {
+        auto e = parseConditional() ;
+        if ( !e )
+            throwException("expecting conditional expression") ;
+        auto n = make_shared<IfBlockNode>(e);
+        addNode(n) ;
+        pushControlBlock(n) ;
+    } else if ( expect("filter") ) {
+        string name ;
+        key_val_list_t args ;
+        if ( parseName(name) ) {
+            if ( expect('(') ) {
+                key_val_t arg ;
+                while ( parseFunctionArg(arg) ) {
+                    args.emplace_back(arg) ;
+                    if ( expect(',') ) continue ;
+                    else break ;
+                }
+                if ( !expect(')') )
+                    throwException("No closing parenthesis") ;
+            }
+
+        } else throwException("filter name expected") ;
+
+        auto n = ContainerNodePtr(new FilterBlockNode(name, std::move(args))) ;
+        addNode(n) ;
+        pushControlBlock(n) ;
+    }  else if ( expect("endfilter") ) {
+        popControlBlock("filter") ;
+    } else if ( expect("extends") ) {
+        auto e = parseExpression() ;
+        if ( !e )
+            throwException("expecting expression") ;
+        auto n = make_shared<ExtensionBlockNode>(e);
+        addNode(n) ;
+        pushControlBlock(n) ;
+    }  else if ( expect("endextends") ) {
+        popControlBlock("extends") ;
+    }  else if ( expect("macro") ) {
+
+        string name ;
+
+        if ( parseName(name) ) {
+            if ( expect('(') ) {
+                identifier_list_t ids ;
+                parseNameList(ids);
+                if ( !expect(')') )
+                    throwException("No closing parenthesis") ;
+                auto n = make_shared<MacroBlockNode>(name, std::move(ids));
+                addNode(n) ;
+                pushControlBlock(n) ;
+            }
+        } else throwException("macro name expected") ;
+    } else if ( expect("endmacro") ) {
+        popControlBlock("macro") ;
+    } else if ( expect("import") ) {
+        NodePtr e ;
+        if ( expect("self") )
+            e = nullptr ;
+        else {
+            e = parseExpression() ;
+            if ( !e )
+                throwException("expected expression") ;
+        }
+
+        if ( expect("as") ) {
+            string name ;
+            if ( parseName(name) ) {
+                auto n = make_shared<ImportBlockNode>(e, name);
+                addNode(n) ;
+                pushControlBlock(n) ;
+             }
+        } else throwException("name expected") ;
+
+    } else if ( expect("from") ) {
+        NodePtr e ;
+        if ( expect("self") )
+            e = nullptr ;
+        else {
+            e = parseExpression() ;
+            if ( !e )
+                throwException("expected expression") ;
+        }
+
+        if ( expect("import") ) {
+            key_alias_list_t imports ;
+            if ( parseImportList(imports) ) {
+                auto n = make_shared<ImportBlockNode>(e, std::move(imports));
+                addNode(n) ;
+                pushControlBlock(n) ;
+             }
+        } else throwException("import definition expected") ;
+    } else if ( expect("endimport") ) {
+        popControlBlock("import") ;
     }
+
 }
 
 ContentNodePtr Parser::parseSubstitutionTag() {
@@ -324,7 +453,7 @@ ContentNodePtr Parser::parseSubstitutionTag() {
     if ( expect('-') )
         trim_left = true ;
 
-    NodePtr expr = parseExpression();
+    NodePtr expr = parseFilterExpression();
     if ( !expr )
         throwException("missing expression") ;
 
@@ -332,7 +461,7 @@ ContentNodePtr Parser::parseSubstitutionTag() {
         trim_right = true ;
 
     if ( !expect("}}") )
-         throwException("Tag not closed while parsing substitution tag") ;
+        throwException("Tag not closed while parsing substitution tag") ;
 
     return make_shared<SubstitutionBlockNode>(expr, trim_left, trim_right) ;
 
@@ -351,6 +480,52 @@ ContentNodePtr Parser::parseRaw() {
     cout << "raw: \"" << res << "\"" << endl ;
 
     return make_shared<RawTextNode>(res) ;
+}
+
+
+// f = e g | e
+// g = '|' name '(' args ')' g
+
+NodePtr Parser::parseFilterExpression()
+{
+    NodePtr lhs ;
+
+    if ( ( lhs = parseConditional())) {
+        auto g = parseFilterExpressionReminder(lhs) ;
+        if( !g ) return lhs ;
+        else return g ;
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseFilterExpressionReminder(NodePtr parent)
+{
+    key_val_list_t args ;
+
+    if ( expect('|') ) {
+        string name ;
+        if ( parseName(name) ) {
+            if ( expect('(') ) {
+
+                key_val_t arg ;
+                while ( parseFunctionArg(arg) ) {
+                    args.emplace_back(arg) ;
+                    if ( expect(',') ) continue ;
+                    else break ;
+                }
+                if ( !expect(')') )
+                    throwException("No closing parenthesis") ;
+            }
+
+        } else throwException("filter name expected") ;
+
+        auto n = NodePtr(new InvokeFilterNode(parent, name, std::move(args))) ;
+        auto e = parseFilterExpressionReminder(n) ;
+        if ( e ) return e ;
+        else return n;
+    }
+    else return nullptr ;
 }
 
 NodePtr Parser::parseExpression()
@@ -433,7 +608,7 @@ NodePtr Parser::parseArray()
             } else e = nullptr ;
         }
         if ( expect(']') )
-          return NodePtr(new ArrayNode(std::move(elements))) ;
+            return NodePtr(new ArrayNode(std::move(elements))) ;
 
     }
 
@@ -448,6 +623,35 @@ bool Parser::parseKeyValuePair(string &key, NodePtr &val) {
     val = parseExpression() ;
     if ( !val ) throwException("expected expression") ;
     return true ;
+}
+
+bool Parser::parseNameList(identifier_list_t &ids) {
+    string name ;
+    while ( parseName(name) ) {
+        ids.push_back(name) ;
+        if ( expect(',') ) continue ;
+        else break ;
+    }
+
+    return !ids.empty() ;
+}
+
+bool Parser::parseImportList(key_alias_list_t &ids) {
+    string key, alias ;
+    while ( parseName(key) ) {
+        if ( expect("as") ) {
+            if ( parseName(alias) ) {
+                ids.emplace_back(make_pair(key, alias)) ;
+            } else throwException("name expected") ;
+        } else {
+            ids.emplace_back(make_pair(key, string())) ;
+        }
+
+        if ( expect(',') ) continue ;
+        else break ;
+    }
+
+    return !ids.empty() ;
 }
 
 NodePtr Parser::parseObject()
@@ -465,7 +669,7 @@ NodePtr Parser::parseObject()
             else break ;
         }
         if ( expect('}') )
-          return NodePtr(new DictionaryNode(std::move(elements))) ;
+            return NodePtr(new DictionaryNode(std::move(elements))) ;
 
     }
 
@@ -519,7 +723,7 @@ NodePtr Parser::parsePrimary() {
         if ( !e )
             throwException("expected expression") ;
         if ( !expect(')') )
-             throwException("missing closing parentheses") ;
+            throwException("missing closing parentheses") ;
 
         return e ;
     }
@@ -540,7 +744,7 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
         }
         else val = NodePtr(new IdentifierNode(key)) ;
     } else {
-       val = parseExpression() ;
+        val = parseExpression() ;
     }
 
     if ( !val )
@@ -563,7 +767,6 @@ NodePtr Parser::parseVariable() {
         }
         else if ( expect('(') ) {
 
-
             key_val_list_t args ;
             key_val_t arg ;
             while ( parseFunctionArg(arg) ) {
@@ -584,6 +787,181 @@ NodePtr Parser::parseVariable() {
     return nullptr ;
 }
 
+NodePtr Parser::parseConditional()
+{
+    NodePtr lhs, rhs ;
+
+    if ( (lhs = parseBooleanTerm()) ) {
+        if ( expect("||") ) {
+            rhs = parseConditional() ;
+            return NodePtr(new BooleanOperator(BooleanOperator::Or, lhs, rhs)) ;
+        }
+        else return lhs ;
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseBooleanTerm()
+{
+    NodePtr lhs, rhs ;
+
+    if ( (lhs = parseBooleanFactor()) ) {
+        if ( expect("&&") ) {
+            rhs = parseBooleanTerm() ;
+            return NodePtr(new BooleanOperator(BooleanOperator::And, lhs, rhs)) ;
+        }
+        else return lhs ;
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseBooleanFactor() {
+    bool negative = false ;
+    if ( expect('!') )
+        negative = true ;
+
+    auto e = parseBooleanPrimary() ;
+
+    if ( e ) {
+        if ( negative )
+            return NodePtr(new BooleanNegationOperator(e)) ;
+        else
+            return e ;
+    } else
+        return nullptr ;
+}
+
+
+NodePtr Parser::parseBooleanPrimary() {
+    auto e = parseBooleanPredicate() ;
+    if ( e ) return e ;
+
+    if ( expect('(') ) {
+        auto e = parseConditional() ;
+        if ( !e ) throwException("expected expression") ;
+        if ( !expect(')') )
+            throwException("closing parenthesis missing") ;
+        return e ;
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseBooleanPredicate() {
+
+    auto e = parseExpression() ;
+    if ( !e ) return nullptr ;
+
+    NodePtr p ;
+    p = parseComparisonPredicate(e) ;
+    if ( p ) return p ;
+
+    p = parseContainmentPredicate(e) ;
+    if ( p ) return p ;
+
+    p = parseMatchesPredicate(e) ;
+    if ( p ) return p ;
+
+    p = parseTestPredicate(e) ;
+    if ( p ) return p ;
+
+    return e ;
+
+}
+
+NodePtr Parser::parseComparisonPredicate(NodePtr lhs) {
+    ComparisonPredicate::Type type ;
+
+    if ( expect("!=") )
+        type = ComparisonPredicate::NotEqual ;
+    else if ( expect("==") )
+        type = ComparisonPredicate::Equal ;
+    else if ( expect('<') )
+        type = ComparisonPredicate::Less ;
+    else if ( expect('>') )
+        type = ComparisonPredicate::Greater ;
+    else if ( expect(">=") )
+        type = ComparisonPredicate::GreaterOrEqual ;
+    else if ( expect("<=") )
+        type = ComparisonPredicate::LessOrEqual ;
+    else
+        return nullptr ;
+
+    auto rhs = parseExpression() ;
+    if ( rhs )
+        return NodePtr(new ComparisonPredicate(type, lhs, rhs)) ;
+    else
+        throwException("expecting expression");
+}
+
+NodePtr Parser::parseContainmentPredicate(NodePtr lhs) {
+    bool positive = true ;
+    if ( expect("not") )
+        positive = false ;
+
+    if ( expect("in") ) {
+        auto rhs = parseExpression() ;
+        if ( rhs )
+            return NodePtr(new ContainmentNode(lhs, rhs, positive)) ;
+        else
+        throwException("expecting expression");
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseTestPredicate(NodePtr lhs) {
+
+    if ( expect("is") ) {
+
+        bool positive = true ;
+        if ( expect("not") )
+            positive = false ;
+
+        key_val_list_t args ;
+        string name ;
+
+        if ( parseName(name) ) {
+            if ( expect('(') ) {
+
+                key_val_t arg ;
+                while ( parseFunctionArg(arg) ) {
+                    args.emplace_back(arg) ;
+                    if ( expect(',') ) continue ;
+                    else break ;
+                }
+                if ( !expect(')') )
+                    throwException("No closing parenthesis") ;
+            }
+
+            return NodePtr(new InvokeTestNode(lhs, name, std::move(args), positive)) ;
+        } else throwException("function name expected") ;
+    }
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseMatchesPredicate(NodePtr lhs) {
+
+    bool positive = true ;
+
+    if ( expect('~') )
+        positive = true ;
+    else if ( expect("!~") )
+        positive = false ;
+    else
+        return nullptr ;
+
+    string rx ;
+    if ( !parseString(rx) )
+        throwException("expecting regular expression literal") ;
+
+    return NodePtr(new MatchesNode(lhs, rx, positive))  ;
+
+}
+
 void Parser::pushControlBlock(ContainerNodePtr node) {
     stack_.push_back(node) ;
 }
@@ -591,15 +969,15 @@ void Parser::pushControlBlock(ContainerNodePtr node) {
 void Parser::popControlBlock(const char *tag_name) {
     auto it = stack_.rbegin() ;
 
-     while ( it != stack_.rend() ) {
-         auto n = *it ;
-         if ( (*it)->tagName() == tag_name ) {
-             stack_.pop_back() ; return ;
-         } else if ( !(*it)->shouldClose() ) {
-             ++it ; stack_.pop_back() ;
-         }
-         else throwException("unmatched tag")  ;
-     }
+    while ( it != stack_.rend() ) {
+        auto n = *it ;
+        if ( (*it)->tagName() == tag_name ) {
+            stack_.pop_back() ; return ;
+        } else if ( !(*it)->shouldClose() ) {
+            ++it ; stack_.pop_back() ;
+        }
+        else throwException("unmatched tag")  ;
+    }
 }
 
 void Parser::addNode(ContentNodePtr node) {

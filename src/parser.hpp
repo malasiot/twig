@@ -90,8 +90,21 @@ private:
     NodePtr parseObject() ;
     NodePtr parseBoolean() ;
     NodePtr parseNull() ;
+    NodePtr parseFilterExpression();
+    NodePtr parseFilterExpressionReminder(NodePtr parent);
     bool parseKeyValuePair(std::string &key, NodePtr &val);
     bool parseFunctionArg(key_val_t &arg);
+    NodePtr parseConditional();
+    NodePtr parseBooleanTerm();
+    NodePtr parseBooleanFactor();
+    NodePtr parseBooleanPrimary();
+    NodePtr parseBooleanPredicate();
+    NodePtr parseComparisonPredicate(NodePtr lhs);
+    NodePtr parseMatchesPredicate(NodePtr lhs);
+    NodePtr parseContainmentPredicate(NodePtr lhs);
+    NodePtr parseTestPredicate(NodePtr lhs);
+    bool parseNameList(identifier_list_t &ids);
+    bool parseImportList(key_alias_list_t &ids);
 
     void pushControlBlock(ContainerNodePtr node) ;
     void popControlBlock(const char *tag_name);
@@ -101,6 +114,10 @@ private:
     static std::string unicodeToUTF8(uint cp) ;
 
     [[noreturn]] void  throwException(const std::string msg) ;
+
+
+
+
 
 };
 

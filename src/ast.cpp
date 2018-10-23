@@ -12,16 +12,17 @@ extern Variant escape(const Variant &src, const string &escape_mode) ;
 
 namespace detail {
 
-Variant BooleanOperator::eval(Context &ctx)
-{
+Variant BooleanOperator::eval(Context &ctx) {
     switch ( op_ ) {
     case And:
         return ( lhs_->eval(ctx).toBoolean() && rhs_->eval(ctx).toBoolean() ) ;
     case Or:
         return ( lhs_->eval(ctx).toBoolean() || rhs_->eval(ctx).toBoolean() ) ;
-    case Not: //?
-        return !( lhs_->eval(ctx).toBoolean() ) ;
     }
+}
+
+Variant BooleanNegationOperator::eval(Context &ctx) {
+    return !( node_->eval(ctx).toBoolean() ) ;
 }
 
 static bool compare_numbers(int64_t lhs, int64_t rhs, ComparisonPredicate::Type op) {
@@ -100,7 +101,7 @@ Variant IdentifierNode::eval(Context &ctx)
         })) ;
     }
     else*/ {
-        return ctx.data().at(name_) ;
+        return ctx.get(name_) ;
         /*
         auto it = ctx.data().find(name_) ;
         if ( it == ctx.data().end() ) return Variant::undefined() ;
@@ -285,11 +286,8 @@ void ForLoopBlockNode::eval(Context &ctx, string &res) const
 
     if ( asize > 0 ) {
 
-
         int child_count = ( else_child_start_ < 0 ) ? children_.size() : else_child_start_ ;
         for ( auto it = target.begin() ; it != target.end() ; ++it, counter++  ) {
-
-            if ( condition_ && !condition_->eval(ctx).toBoolean() ) continue ;
 
             Context tctx(ctx) ;
 
@@ -309,11 +307,14 @@ void ForLoopBlockNode::eval(Context &ctx, string &res) const
                 if ( ids_.size() == 1 ) {
                     Context cctx(tctx) ;
                     cctx.data()[ids_[0]] = *it ;
+                    if ( condition_ && !condition_->eval(cctx).toBoolean() ) continue ;
+
                     c->eval(cctx, res) ;
                 } else if ( ids_.size() == 2 ) {
                     Context cctx(tctx) ;
                     cctx.data()[ids_[0]] =  it.key() ;
                     cctx.data()[ids_[1]] =  it.value() ;
+                    if ( condition_ && !condition_->eval(cctx).toBoolean() ) continue ;
                     c->eval(cctx, res) ;
                 }
             }
@@ -826,6 +827,7 @@ void EmbedBlockNode::eval(Context &ctx, string &res) const
     }
 
 }
+
 
 } // detail
 
