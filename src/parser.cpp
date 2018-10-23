@@ -299,6 +299,7 @@ void  Parser::parseControlTag() {
 }
 
 void Parser::parseControlTagDeclaration() {
+    bool is_embed = false, is_include = false ;
     if ( expect("block") ) {
         string name ;
         if ( !parseName(name) )
@@ -441,6 +442,55 @@ void Parser::parseControlTagDeclaration() {
         } else throwException("import definition expected") ;
     } else if ( expect("endimport") ) {
         popControlBlock("import") ;
+    } else if ( ( is_embed = expect("embed") )|| ( is_include = expect("include") ) ) {
+        auto e = parseExpression() ;
+        if ( !e ) throwException("expected expression") ;
+        bool ignore_missing = false, with_only = false ;
+        if ( expect("ignore") && expect("missing") ) ignore_missing = true ;
+        NodePtr w ;
+        if ( expect("with") )  {
+            w = parseExpression() ;
+            if ( !w ) throwException("expected expression") ;
+        }
+        if ( expect("only"))
+            with_only = true ;
+
+        if ( is_embed ) {
+            auto n = make_shared<EmbedBlockNode>(e, ignore_missing, w, with_only) ;
+            addNode(n) ;
+            pushControlBlock(n) ;
+        }
+        else {
+            auto n = make_shared<IncludeBlockNode>(e, ignore_missing, w, with_only) ;
+            addNode(n) ;
+        }
+    } else if ( expect("endembed") ) {
+        popControlBlock("embed") ;
+    }  else if ( expect("endinclude") ) {
+        popControlBlock("include") ;
+    } else if ( expect("autoescape") ) {
+        string mode = "html";
+        if ( expect("false") )
+            mode = "no" ;
+        else if ( parseString(mode)) ;
+        auto n = make_shared<AutoEscapeBlockNode>(mode) ;
+        addNode(n) ;
+        pushControlBlock(n) ;
+    } else if ( expect("endautoescape") ) {
+        popControlBlock("autoescape") ;
+    } else if ( expect("set") ) {
+        string id ;
+        if ( parseName(id) ) {
+            if ( expect("=") ) {
+                auto e = parseExpression() ;
+                if ( e )  {
+                    auto n = make_shared<AssignmentBlockNode>(id, e) ;
+                    addNode(n) ;
+                } else throwException("expecting expression") ;
+            } else throwException("expected '='") ;
+        } else throwException("expected identifier name") ;
+    }  else if ( expect("endset") ) {
+       popControlBlock("set") ;
     }
 
 }
