@@ -502,13 +502,13 @@ class SubstitutionBlockNode: public ContentNode {
 public:
     using Ptr = std::shared_ptr<SubstitutionBlockNode> ;
 
-    SubstitutionBlockNode(NodePtr expr, bool trim_left, bool trim_right):
-        expr_(expr), trim_left_(trim_left), trim_right_(trim_right) {}
+    SubstitutionBlockNode(NodePtr expr):
+        expr_(expr) {}
 
     void eval(Context &ctx, std::string &res) const override;
 
     NodePtr expr_ ;
-    bool trim_left_, trim_right_ ;
+
 };
 
 

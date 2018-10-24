@@ -60,7 +60,9 @@ private:
     const std::string &src_ ;
     Position pos_ ;
     std::deque<ContainerNodePtr> stack_ ;
-
+    ContentNodePtr current_ ;
+    bool trim_prev_raw_block_ = false ;
+    bool trim_next_raw_block_ = false ;
 
 private:
 
@@ -78,7 +80,7 @@ private:
     bool parseIdentifier(std::string &name) ;
     void parseControlTag() ;
     void parseControlTagDeclaration() ;
-    ContentNodePtr parseSubstitutionTag() ;
+    void parseSubstitutionTag() ;
     ContentNodePtr parseRaw() ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
@@ -108,15 +110,13 @@ private:
     void pushControlBlock(ContainerNodePtr node) ;
     void popControlBlock(const char *tag_name);
     void addNode(ContentNodePtr node) ;
+    void trimWhiteBefore();
+    void trimWhiteAfter();
 
     bool decodeUnicode(uint &cp) ;
     static std::string unicodeToUTF8(uint cp) ;
 
     [[noreturn]] void  throwException(const std::string msg) ;
-
-
-
-
 
 };
 
