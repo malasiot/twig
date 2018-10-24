@@ -67,9 +67,8 @@ private:
 
     void skipSpace() ;
     bool expect(char c) ;
-    bool expect(const char *str) ;
-
-    void nextToken() ;
+    bool expect(const char *str, bool backtrack=false) ;
+    void eatComment() ;
 
     bool parseString(std::string &val) ;
     bool parseNumber(std::string &val) ;

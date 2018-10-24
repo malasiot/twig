@@ -25,6 +25,10 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             else if ( c == '%' ) {
                 parseControlTag() ;
             }
+            else if ( c == '#' ) {
+                ++pos_ ;
+                eatComment() ;
+            }
             else {
                 pos_ = cur ;
                 auto n = parseRaw() ;
@@ -90,7 +94,7 @@ bool Parser::expect(char c) {
     return false ;
 }
 
-bool Parser::expect(const char *str) {
+bool Parser::expect(const char *str, bool backtrack) {
     skipSpace() ;
 
     const char *c = str ;
@@ -103,7 +107,25 @@ bool Parser::expect(const char *str) {
         }
         else ++c ;
     }
+
+    if ( backtrack ) {
+        pos_ = cur ;
+    }
     return true ;
+}
+
+void Parser::eatComment()
+{
+    while ( pos_ ) {
+        char c = *pos_++ ;
+        if ( c == '#' ) {
+            char c = *pos_++ ;
+            if ( c == '}' )  return ;
+        }
+    }
+
+    throwException("unclosed comment") ;
+
 }
 
 
@@ -587,6 +609,10 @@ NodePtr Parser::parseExpression()
         if ( expect('+') ) {
             rhs = parseExpression() ;
             return NodePtr(new BinaryOperator('+', lhs, rhs)) ;
+        } else if ( expect("-}}", true )) { // ambiguity with '-' char
+            return lhs ;
+        } else if ( expect("-%}", true )) {
+            return lhs ;
         }
         else if ( expect('-') ) {
             rhs = parseExpression() ;

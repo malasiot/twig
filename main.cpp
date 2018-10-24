@@ -6,7 +6,7 @@ using namespace std ;
 using namespace twig ;
 
 const string msg = R"(
-hello {% if a.x[2] > 3 %} if {% else %} else {% endif %}
+hello***{% if a.x[2] > 3 %}{{ ' if ' -}}{% else %} else {% endif %}**
 )";
 
 class StringTemplateLoader: public TemplateLoader {

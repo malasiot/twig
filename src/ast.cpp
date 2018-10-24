@@ -728,9 +728,24 @@ Variant MatchesNode::eval(Context &ctx)
     return (bool)res ;
 }
 
+static inline void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
+        return !std::isspace(ch);
+    }));
+}
+
+static inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
+        return !std::isspace(ch);
+    }).base(), s.end());
+}
+
 void SubstitutionBlockNode::eval(Context &ctx, string &res) const {
 
     string content = escape(expr_->eval(ctx), ctx.escape_mode_).toString() ;
+    if ( trim_left_ ) ltrim(content) ;
+    if ( trim_right_ ) rtrim(content) ;
+
     res.append(content) ;
 }
 
