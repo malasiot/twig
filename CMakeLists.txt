@@ -14,6 +14,7 @@ add_library(twig SHARED
     src/functions.cpp
     src/renderer.cpp
     src/loader.cpp
+    src/json_parser.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
