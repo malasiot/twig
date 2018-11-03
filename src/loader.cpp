@@ -1,13 +1,13 @@
-#include <wspp/twig/loader.hpp>
-#include <wspp/twig/exceptions.hpp>
+#include <twig/loader.hpp>
+#include <twig/exceptions.hpp>
 
 #include <fstream>
 #include <sstream>
 
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
-
 using namespace std ;
+
+namespace twig {
+
 
 FileSystemTemplateLoader::FileSystemTemplateLoader(const std::initializer_list<string> &root_folders, const string &suffix):
     root_folders_(root_folders), suffix_(suffix) {
@@ -15,22 +15,21 @@ FileSystemTemplateLoader::FileSystemTemplateLoader(const std::initializer_list<s
 
 string FileSystemTemplateLoader::load(const string &key) {
 
-    using namespace boost::filesystem ;
-
     for ( const string &r: root_folders_ ) {
-        path p(r) ;
 
-        if ( boost::ends_with(key, suffix_) ) p /= key ;
-        else p /= key + suffix_;
+        string p(r) ;
 
-        if ( !exists(p) ) continue ;
+        if ( key.rfind(suffix_) != string::npos ) p += '/' + key ;
+        else p += '/' + key + suffix_;
 
-        ifstream in(p.string()) ;
+        ifstream in(p) ;
 
-        return static_cast<stringstream const&>(stringstream() << in.rdbuf()).str() ;
+        if ( in ) {
+            return static_cast<stringstream const&>(stringstream() << in.rdbuf()).str() ;
+        }
     }
 
     throw TemplateLoadException("Cannot find template: " + key) ;
+}
 
-    return string() ;
 }

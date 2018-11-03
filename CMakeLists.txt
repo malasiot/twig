@@ -13,11 +13,12 @@ add_library(twig SHARED
     src/ast.hpp
     src/functions.cpp
     src/renderer.cpp
+    src/loader.cpp
 
-    include/twig/variant.hpp
-    include/twig/functions.hpp
-    include/twig/exceptions.hpp
-    include/twig/renderer.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/exceptions.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/renderer.hpp
 )
 
 target_link_libraries(twig)
