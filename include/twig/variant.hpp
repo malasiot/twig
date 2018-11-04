@@ -577,6 +577,12 @@ public:
         else return (data_.fp_)(args) ;
     }
 
+
+    // Parse JSON string into Variant. May optionaly throw a JSONParseException or otherwise return a Null ;
+    static Variant fromJSONString(const std::string &src, bool throw_exception = false) ;
+    static Variant fromJSONFile(const std::string &path, bool throw_exception = false) ;
+
+
 private:
 
 
@@ -683,10 +689,6 @@ private:
         }
 
     }
-
-    // Parse JSON string into Variant. May optionaly throw a JSONParseException or otherwise return a Null ;
-    static Variant fromJSONString(const std::string &src, bool throw_exception = false) ;
-    static Variant fromJSONFile(const std::string &path, bool throw_exception = false) ;
 
 
 
