@@ -47,6 +47,11 @@ private:
         size_t line_ = 1;
     } ;
 
+
+    void addMacroBlock(const std::string &name, ContentNodePtr node) {
+           root_->macro_blocks_.insert({name, node}) ;
+    }
+
     struct Token {
         enum Type { LiteralString, LiteralDouble, LiteralInteger, LiteralBoolean, Name,
                     Raw, StartSubTag, EndSubTag, StartBlockTag, EndBlockTag } ;
@@ -61,8 +66,10 @@ private:
     Position pos_ ;
     std::deque<ContainerNodePtr> stack_ ;
     ContentNodePtr current_ ;
+    DocumentNodePtr root_ ;
     bool trim_prev_raw_block_ = false ;
     bool trim_next_raw_block_ = false ;
+
 
 private:
 

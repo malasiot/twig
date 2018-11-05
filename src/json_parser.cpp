@@ -116,7 +116,7 @@ bool JSONParser::parseNumber(Variant &val) {
     skipSpace() ;
 
     smatch what ;
-    if ( regex_search(cursor_, end_, what, rx_number) ) return false ;
+    if ( !regex_search(cursor_, end_, what, rx_number) ) return false ;
     else {
         string c = what[0] ;
         cursor_ += c.length() ;
