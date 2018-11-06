@@ -231,11 +231,11 @@ Variant AttributeIndexingNode::eval(Context &ctx)
 }
 
 
-static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &ctx, const Variant &extra = {})
+static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &ctx, const Variant &extra, bool has_extra)
 {
     Variant::Array pos_args ;
 
-    if ( !extra.isUndefined() )
+    if ( has_extra )
         pos_args.push_back(extra) ;
 
     Variant::Object kv_args ;
@@ -255,7 +255,7 @@ static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &c
 static Variant evalFilter(const string &name, const key_val_list_t &args, const Variant &target, Context &ctx) {
 
     Variant evargs ;
-    evalArgs(args, evargs, ctx, target) ;
+    evalArgs(args, evargs, ctx, target, true) ;
     return FunctionFactory::instance().invoke(name, evargs) ;
 }
 
@@ -372,7 +372,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     Variant f = ctx.get(callable_) ;
 
     Variant args ;
-    evalArgs(args_, args, ctx) ;
+    evalArgs(args_, args, ctx, {}, false) ;
 
     if ( f.type() == Variant::Type::Function )
         return f.invoke(args) ;

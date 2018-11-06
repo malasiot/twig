@@ -88,7 +88,7 @@ private:
     void parseControlTag() ;
     void parseControlTagDeclaration() ;
     void parseSubstitutionTag() ;
-    ContentNodePtr parseRaw() ;
+    ContentNodePtr parseRaw(bool) ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
     NodePtr parseFactor() ;

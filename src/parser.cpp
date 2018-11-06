@@ -31,13 +31,13 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             }
             else {
                 pos_ = cur ;
-                auto n = parseRaw() ;
+                auto n = parseRaw(true) ;
                 addNode(n) ;
             }
         }
         else {
             pos_ = cur ;
-            auto n = parseRaw() ;
+            auto n = parseRaw(false) ;
             addNode(n) ;
         }
 
@@ -539,8 +539,10 @@ void Parser::parseSubstitutionTag() {
 
 }
 
-ContentNodePtr Parser::parseRaw() {
+ContentNodePtr Parser::parseRaw(bool br) {
     string res ;
+
+    if ( br ) res += '{' ;
 
     while ( pos_ ) {
         char c = *pos_ ;

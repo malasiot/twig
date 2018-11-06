@@ -369,6 +369,8 @@ public:
             const Variant &val = current->fetchKey(subkey) ;
             if ( val.isUndefined() ) return val ;
 
+            start = end + 1 ;
+
             if ( end != std::string::npos ) current = &val ;
             else return val ;
         }
