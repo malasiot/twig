@@ -44,7 +44,13 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
 
     detail::DocumentNodePtr root(new detail::DocumentNode(*this)) ;
 
+    try {
     parser.parse(root, resource) ;
+    } catch ( detail::ParseException & e ) {
+        stringstream s ;
+        s << "Error compiling '" << resource << "': " << e.msg_ << " at " << e.line_ << '(' << e.col_ << ')' ;
+        throw TemplateCompileException(s.str()) ;
+    }
 
     if ( caching_ ) g_cache.add(resource, root) ;
 
