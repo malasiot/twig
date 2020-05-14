@@ -26,6 +26,7 @@ private:
 
     bool parseValue(Variant &val) ;
     bool parseString(Variant &val) ;
+    bool parseName(Variant &val) ;
     bool parseNumber(Variant &val) ;
     bool parseArray(Variant &val) ;
     bool parseObject(Variant &val) ;
@@ -104,6 +105,33 @@ bool JSONParser::parseString(Variant &val)
 
         } else {
             res += c;
+        }
+    }
+
+    return false ;
+}
+
+
+
+bool JSONParser::parseName(Variant &val)
+{
+    skipSpace() ;
+
+    string res ;
+
+    char c = *cursor_ ;
+    if ( !isalpha(c) ) return false ;
+
+    while ( cursor_ != end_ ) {
+        char c = *cursor_;
+
+        if ( isalpha(c) || c == '_' ) {
+            res.push_back(c) ;
+            cursor_ ++ ;
+        }
+        else {
+            val = res ;
+            return true ;
         }
     }
 
@@ -223,8 +251,11 @@ bool JSONParser::parseNull(Variant &val)
 
 bool JSONParser::parseKeyValuePair(string &key, Variant &val) {
     Variant keyv ;
-    if ( !parseString(keyv) ) return false ;
+    if ( !parseString(keyv) && !parseName(keyv) )
+        return false ;
+
     key = keyv.toString() ;
+
     if ( !expect(":") ) return false ;
     if ( !parseValue(val) ) return false ;
     return true ;
