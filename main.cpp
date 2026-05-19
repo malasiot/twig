@@ -9,6 +9,14 @@ const string msg = R"(
 hello***{% if a.x[2] > 3 %}{{ ' if ' -}}{% else %} else {% endif %}**
 )";
 
+const string loop  =  R"(
+{% for user in users %}
+    * {{ user.name }}
+{% else %}
+    No users have been found.
+{% endfor %}
+)";
+
 class StringTemplateLoader: public TemplateLoader {
 public:
     StringTemplateLoader(const string &s): str_(s) {}
@@ -22,12 +30,37 @@ public:
 
 int main(int argc, char *argv[]) {
 
-    TemplateRenderer rdr(make_shared<StringTemplateLoader>(msg)) ;
+    TemplateRenderer rdr(make_shared<StringTemplateLoader>(loop)) ;
+
+   Variant::Object ctx{
+        {"users", Variant::Array{
+            Variant::Object{{"name", "Alice"}},
+            Variant::Object{{"name", "Bob"}},
+            Variant::Object{{"name", "Charlie"}}
+        }}
+    } ;
 
     try {
-        cout << rdr.render("--", Variant::Object{{ "a" , Variant::Object{{ "x", Variant::Array{{ 2, 3, 4, 5}} }} },
-                                                 {"f", Variant::Function([&](const Variant &v)->Variant {
-                                                      return 3;})}}) << endl;
+        cout << rdr.render("--", ctx) << endl;
+
+        cout << rdr.renderString(R"({% if var ~ '/^[\\d\\.]+/' %}
+    Do Stuff
+{% endif %})", Variant::Object({{"var", "23xx"}})) << endl ;
+
+  cout << rdr.renderString(R"({% set data = lipsum(40) %}{{ data }})", Variant::Object({{"var", "Hello, World!<html>"}, {
+    "lipsum", Variant::Function([](const Variant &args) -> Variant {
+        Variant::Array vargs ;
+        unpack_args(args, {"n"}, vargs) ;
+
+        if ( !vargs.empty() ) {
+            auto n = vargs[0].toInteger() ;
+            string res ;
+            for ( int64_t i = 0 ; i < n ; ++i ) res += "Lorem ipsum dolor sit amet, consectetur adipiscing elit. " ;
+            return res ;
+        }
+        else return string() ;
+    })}})
+            ) << endl ;
     }
     catch ( TemplateCompileException  &e ) {
         cout << e.what() << endl ;

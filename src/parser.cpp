@@ -212,6 +212,67 @@ bool Parser::parseString(std::string &res)
     return false ;
 }
 
+bool Parser::parseRegexString(std::string &res)
+{
+    Position cur = pos_ ;
+
+    skipSpace() ;
+    char oc = *pos_++ ;
+
+    if ( oc == '"' || oc == '\'' ) {
+        while ( pos_ ) {
+            char c = *pos_++ ;
+            if ( c == oc ) {
+                return true ;
+            }
+            else if ( c == '\\' ) {
+                if ( !pos_ )  throwException("End of file while parsing string literal");
+                char escape = *pos_++ ;
+
+                switch (escape) {
+                case '"':
+                    res += '"'; break ;
+                case '\'':
+                    res += '\''; break ;
+                case '/':
+                    res += '/'; break ;
+                case '\\':
+                    res += '\\'; break;
+                case 'b':
+                case 'f':
+                case 'n':
+                case 'r':
+                case 't':
+                    res += '\\';
+                    res += escape;
+                    break ;
+                case 'u': {
+                    // Preserve unicode escapes in regex patterns, do not decode them as a literal character.
+                    res += "\\u";
+
+                    for ( int i = 0 ; i < 4 ; ++i ) {
+                        if ( !pos_ ) throwException("End of file while parsing regex string") ;
+                        char hex = *pos_++ ;
+                        res += hex;
+                    }
+                } break;
+                default:
+                    // Preserve any other escaped regex token as-is.
+                    res += '\\';
+                    res += escape;
+                    break;
+                }
+
+            } else {
+                res += c;
+            }
+        }
+    }
+
+    pos_ = cur ;
+    return false ;
+}
+
 bool Parser::parseNumber(string &val) {
     static std::regex rx_number(R"(^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)") ;
 
@@ -549,7 +610,7 @@ ContentNodePtr Parser::parseRaw() {
         ++pos_ ;
     }
 
-    cout << "raw: \"" << res << "\"" << endl ;
+  //  cout << "raw: \"" << res << "\"" << endl ;
 
     return make_shared<RawTextNode>(res) ;
 }
@@ -1034,7 +1095,12 @@ NodePtr Parser::parseMatchesPredicate(NodePtr lhs) {
     if ( !parseString(rx) )
         throwException("expecting regular expression literal") ;
 
-    return NodePtr(new MatchesNode(lhs, rx, positive))  ;
+    try {
+        return NodePtr(new MatchesNode(lhs, rx, positive)) ;
+    } catch ( std::regex_error &e ) {
+        throwException("invalid regular expression: " + string(e.what())) ;
+    }
+    return NodePtr()  ;
 
 }
 

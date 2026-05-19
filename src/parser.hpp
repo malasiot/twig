@@ -71,6 +71,7 @@ private:
     void eatComment() ;
 
     bool parseString(std::string &val) ;
+    bool parseRegexString(std::string &val) ;
     bool parseNumber(std::string &val) ;
     bool parseInteger(int64_t &val) ;
     bool parseDouble(double &val) ;
@@ -144,6 +145,10 @@ private:
 class ParseException {
 public:
     ParseException(const std::string &msg, size_t line, size_t col): msg_(msg), line_(line), col_(col) {}
+
+    std::string what() const {
+        return std::string("Parse error at line ") + std::to_string(line_) + ", column " + std::to_string(col_) + ": " + msg_ ;
+    }
 
     size_t line_, col_ ;
     std::string msg_ ;

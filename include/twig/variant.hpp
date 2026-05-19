@@ -647,6 +647,8 @@ private:
         case Type::Function:
             data_.fp_.~Function() ;
             break ;
+        default:
+            break ;
         }
     }
 
@@ -679,10 +681,7 @@ private:
         default:
             break;
         }
-
     }
-
-
 
 private:
 
@@ -701,7 +700,6 @@ private:
 
     Data data_ ;
     Type tag_ ;
-
 };
 
 

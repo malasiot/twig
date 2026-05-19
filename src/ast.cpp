@@ -683,38 +683,31 @@ Variant ContainmentNode::eval(Context &ctx)
 
 }
 
-#if 0
+#if 1
 MatchesNode::MatchesNode(NodePtr lhs, const string &rx, bool positive): lhs_(lhs), positive_(positive) {
 
     if ( rx.size() < 2 ) throw TemplateCompileException("empty regex string") ;
-    const char *p = rx.c_str(), *q = p + rx.length() - 1 ;
-    char mod = 0 ;
 
-    if ( *q != *p ) { mod = *q ; --q ; }
-    if ( *q != *p )
+    char delimiter = rx[0];
+
+    size_t end_delim_pos = rx.rfind(delimiter);
+    if (end_delim_pos == 0 || end_delim_pos == std::string::npos) {
         throw TemplateCompileException("unmatched delimiters in regex") ;
-
-    std::regex::flag_type flags = std::regex::perl ;/*| boost::regex::no_mod_m*/;
-
-    switch ( mod ) {
-    case 0:
-        break ;
-    case 's':
-        flags |= boost::regex::mod_s ;
-        break ;
-    case 'i':
-        flags |= boost::regex::icase ;
-        break ;
-    case 'm':
-        flags |= boost::regex::no_mod_m ;
-        break ;
-    case 'x':
-        flags |= boost::regex::mod_x ;
-        break ;
     }
 
-    ++p ;
-    rx_.assign(p, q, flags) ;
+    // 3. Extract the inner pattern and any trailing flags
+    std::string pattern = rx.substr(1, end_delim_pos - 1);
+    std::string flagsStr = rx.substr(end_delim_pos + 1);
+
+    std::regex_constants::syntax_option_type regex_flags = std::regex_constants::ECMAScript;
+    for (char flag : flagsStr) {
+        if (flag == 'i') {
+            regex_flags |= std::regex_constants::icase; // Case-insensitive
+        }
+        // Note: PCRE flags like 'm', 's', 'x' lack direct, identical ECMAScript flag mappings.
+    }
+
+    rx_.assign(pattern, regex_flags) ;
 
 
 }
@@ -723,7 +716,7 @@ Variant MatchesNode::eval(Context &ctx)
 {
     string val = lhs_->eval(ctx).toString() ;
 
-    bool res = std::regex_match(val, rx_)  ;
+    bool res = std::regex_search(val, rx_)  ;
 
     return (bool)res ;
 }

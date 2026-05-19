@@ -7,24 +7,33 @@ namespace twig {
 
 string TemplateRenderer::render(const string &resource, const Variant::Object &ctx)
 {
-    auto ast = compile(resource) ;
+    try {
+        auto ast = compile(resource) ;
 
-    Context eval_ctx(*this, ctx) ;
+        Context eval_ctx(*this, ctx) ;
 
-    string res ;
-    ast->eval(eval_ctx, res) ;
-    return res ;
+        string res ;
+        ast->eval(eval_ctx, res) ;
+        return res ;
+    } catch ( detail::ParseException &e ) {
+        throw TemplateCompileException(string("Error compiling template \"") + resource + "\": " + e.what()) ;
+        return string() ;
+    }
 }
 
 string TemplateRenderer::renderString(const string &str, const Variant::Object &ctx)
 {
 
-    auto ast = compileString(str) ;
-
-    Context eval_ctx(*this, ctx) ;
-    string res ;
-    ast->eval(eval_ctx, res) ;
-    return res ;
+    try {
+         auto ast = compileString(str) ;
+         Context eval_ctx(*this, ctx) ;
+         string res ;
+         ast->eval(eval_ctx, res) ;
+         return res ;
+    } catch ( detail::ParseException &e ) {
+        throw TemplateCompileException(string("Error compiling template string: ") + e.what()) ;
+        return string() ;   
+    }
 }
 
 detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)

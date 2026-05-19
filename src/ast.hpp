@@ -86,8 +86,7 @@ private:
 
 class MatchesNode: public Node {
 public:
-    MatchesNode(NodePtr lhs, const std::string &rx, bool positive):
-        lhs_(lhs), rx_(rx), positive_(positive) {}
+    MatchesNode(NodePtr lhs, const std::string &rx, bool positive) ;
 
     Variant eval(Context &ctx) ;
 
