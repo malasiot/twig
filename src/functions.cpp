@@ -186,7 +186,7 @@ static Variant _length(const Variant &args) {
     Variant::Array unpacked, result ;
     unpack_args(args, { "value" }, unpacked) ;
 
-    return unpacked[0].length() ;
+    return Variant(static_cast<int64_t>(unpacked[0].length())) ;
 }
 
 static Variant _last(const Variant &args) {

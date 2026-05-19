@@ -103,6 +103,7 @@ private:
     NodePtr parseFilterExpressionReminder(NodePtr parent);
     bool parseKeyValuePair(std::string &key, NodePtr &val);
     bool parseFunctionArg(key_val_t &arg);
+    NodePtr parseRangeExpression();
     NodePtr parseConditional();
     NodePtr parseBooleanTerm();
     NodePtr parseBooleanFactor();
@@ -137,6 +138,7 @@ private:
  * ComparisonPredicate = Expression ( '<' | '>' | '==' | '!=' ) Expression
  * LikePredicate = Expression ( 'NOT' )? 'LIKE' Expression
  * NullPredicate Expression 'IS' ('NOT')? 'NULL'
+ *  RangePredicate = Expression ('..' Expression)?
  *  Expression = Term ('+'|'-') Expression ;
  * Term = Factor ('*'|'/') Term
  * Factor = ('+'|'-')? Primary

@@ -565,6 +565,7 @@ public:
 
     static const Variant &null() {
         static Variant null_value ;
+        null_value.tag_ = Type::Null ;
         return null_value ;
     }
 

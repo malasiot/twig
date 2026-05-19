@@ -11,7 +11,7 @@ hello***    {% if a.x[2] > 3 %}   {{- 'if' -}}  {% else %} else {%- endif -%}  *
 
 const string loop  =  R"(
 {% for user in users %}
-    * {{ user.name }}
+    {{loop.index}}. {{ user.name }}
 {% else %}
     No users have been found.
 {% endfor %}
@@ -30,7 +30,7 @@ public:
 
 int main(int argc, char *argv[]) {
 
-    TemplateRenderer rdr(make_shared<StringTemplateLoader>(loop)) ;
+    TemplateRenderer rdr(nullptr) ;
 
    Variant::Object ctx{
         {"users", Variant::Array{
@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     } ;
 
     try {
-        cout << rdr.render("--", ctx) << endl;
+        cout << rdr.renderString(loop, ctx) << endl;
 
         cout << rdr.renderString(R"({% if var ~ '/^[\\d\\.]+/' %}
     Do Stuff

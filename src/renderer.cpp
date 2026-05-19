@@ -21,9 +21,7 @@ string TemplateRenderer::render(const string &resource, const Variant::Object &c
     }
 }
 
-string TemplateRenderer::renderString(const string &str, const Variant::Object &ctx)
-{
-
+string TemplateRenderer::renderString(const string &str, const Variant::Object &ctx) {
     try {
          auto ast = compileString(str) ;
          Context eval_ctx(*this, ctx) ;

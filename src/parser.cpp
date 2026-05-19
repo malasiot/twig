@@ -401,6 +401,14 @@ void Parser::parseControlTagDeclaration() {
         if ( !expect("in") )
             throwException("'in' keyword expected") ;
         auto e = parseFilterExpression() ;
+
+        if ( expect("..") ) {
+            auto c = parseFilterExpression() ;
+            if ( !c ) throwException("expected expression after '..' in range expression") ;
+            e = make_shared<RangeOperatorNode>(e, c) ;
+        }
+      
+      
         if ( !e )
             throwException("missing for loop expression") ;
 
@@ -630,6 +638,22 @@ NodePtr Parser::parseFilterExpression()
         auto g = parseFilterExpressionReminder(lhs) ;
         if( !g ) return lhs ;
         else return g ;
+    } 
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseRangeExpression()
+{
+    NodePtr lhs ;
+
+    if ( ( lhs = parseExpression()) ) {
+        if ( expect("..") ) {
+            auto rhs = parseExpression() ;
+            if ( !rhs )
+                throwException("expecting expression after '..' in range expression") ;
+            return NodePtr(new RangeOperatorNode(lhs, rhs)) ;
+        } else return lhs ;
     }
 
     return nullptr ;

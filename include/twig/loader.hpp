@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 namespace twig {
 // abstract template loader
@@ -25,6 +26,17 @@ public:
 private:
     std::vector<std::string> root_folders_ ;
     std::string suffix_ ;
+};
+
+class ArrayTemplateLoader: public TemplateLoader {
+
+public:
+    ArrayTemplateLoader(const std::map<std::string, std::string> &templates) ;
+
+    virtual std::string load(const std::string &src) override ;
+
+private:
+    std::map<std::string, std::string> templates_ ;
 };
 
 }
