@@ -9,6 +9,7 @@ namespace twig {
 namespace detail {
 
 bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
+    root_ = node ;
     stack_.push_back(node) ;
 
     while ( pos_ ) {
@@ -18,8 +19,7 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             Position cur(pos_) ;
             c = *pos_++ ;
             if ( c == '{' ) {
-                auto n = parseSubstitutionTag() ;
-                addNode(n) ;
+                parseSubstitutionTag() ;
 
             }
             else if ( c == '%' ) {
@@ -31,13 +31,13 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             }
             else {
                 pos_ = cur ;
-                auto n = parseRaw() ;
+                auto n = parseRaw(true) ;
                 addNode(n) ;
             }
         }
         else {
             pos_ = cur ;
-            auto n = parseRaw() ;
+            auto n = parseRaw(false) ;
             addNode(n) ;
         }
 
@@ -362,23 +362,18 @@ bool Parser::parseName(string &name)
 
 void  Parser::parseControlTag() {
 
-    string res ;
-
-    bool trim_left = false, trim_right = false  ;
-
     if ( expect('-') )
-        trim_left = true ;
+        trimWhiteBefore() ;
 
     parseControlTagDeclaration() ;
 
+
     if ( expect('-' ))
-        trim_right = true ;
+        trimWhiteAfter() ;
 
     if ( !expect("%}") )
         throwException("Tag not closed while parsing block") ;
 
-    //   e->setTrimLeft(trim_left) ;
-    //   e->setTrimRight(trim_right) ;
 }
 
 void Parser::parseControlTagDeclaration() {
@@ -405,7 +400,7 @@ void Parser::parseControlTagDeclaration() {
             throwException("identifier list expected") ;
         if ( !expect("in") )
             throwException("'in' keyword expected") ;
-        auto e = parseExpression() ;
+        auto e = parseFilterExpression() ;
         if ( !e )
             throwException("missing for loop expression") ;
 
@@ -461,7 +456,7 @@ void Parser::parseControlTagDeclaration() {
     }  else if ( expect("endfilter") ) {
         popControlBlock("filter") ;
     } else if ( expect("extends") ) {
-        auto e = parseExpression() ;
+        auto e = parseFilterExpression() ;
         if ( !e )
             throwException("expecting expression") ;
         auto n = make_shared<ExtensionBlockNode>(e);
@@ -482,6 +477,7 @@ void Parser::parseControlTagDeclaration() {
                 auto n = make_shared<MacroBlockNode>(name, std::move(ids));
                 addNode(n) ;
                 pushControlBlock(n) ;
+                addMacroBlock(name, n) ;
             }
         } else throwException("macro name expected") ;
     } else if ( expect("endmacro") ) {
@@ -491,7 +487,7 @@ void Parser::parseControlTagDeclaration() {
         if ( expect("self") )
             e = nullptr ;
         else {
-            e = parseExpression() ;
+            e = parseFilterExpression() ;
             if ( !e )
                 throwException("expected expression") ;
         }
@@ -510,7 +506,7 @@ void Parser::parseControlTagDeclaration() {
         if ( expect("self") )
             e = nullptr ;
         else {
-            e = parseExpression() ;
+            e = parseFilterExpression() ;
             if ( !e )
                 throwException("expected expression") ;
         }
@@ -526,13 +522,13 @@ void Parser::parseControlTagDeclaration() {
     } else if ( expect("endimport") ) {
         popControlBlock("import") ;
     } else if ( ( is_embed = expect("embed") )|| ( is_include = expect("include") ) ) {
-        auto e = parseExpression() ;
+        auto e = parseFilterExpression() ;
         if ( !e ) throwException("expected expression") ;
         bool ignore_missing = false, with_only = false ;
         if ( expect("ignore") && expect("missing") ) ignore_missing = true ;
         NodePtr w ;
         if ( expect("with") )  {
-            w = parseExpression() ;
+            w = parseFilterExpression() ;
             if ( !w ) throwException("expected expression") ;
         }
         if ( expect("only"))
@@ -565,7 +561,7 @@ void Parser::parseControlTagDeclaration() {
         string id ;
         if ( parseName(id) ) {
             if ( expect("=") ) {
-                auto e = parseExpression() ;
+                auto e = parseFilterExpression() ;
                 if ( e )  {
                     auto n = make_shared<AssignmentBlockNode>(id, e) ;
                     addNode(n) ;
@@ -578,39 +574,46 @@ void Parser::parseControlTagDeclaration() {
 
 }
 
-ContentNodePtr Parser::parseSubstitutionTag() {
-    string res ;
-
-    bool trim_left = false, trim_right = false  ;
-
+void Parser::parseSubstitutionTag() {
     if ( expect('-') )
-        trim_left = true ;
+        trimWhiteBefore();
 
     NodePtr expr = parseFilterExpression();
     if ( !expr )
         throwException("missing expression") ;
 
+    bool trim_after = false ;
     if ( expect('-') )
-        trim_right = true ;
+        trim_after = true ;
 
     if ( !expect("}}") )
         throwException("Tag not closed while parsing substitution tag") ;
 
-    return make_shared<SubstitutionBlockNode>(expr, trim_left, trim_right) ;
+    auto n = make_shared<SubstitutionBlockNode>(expr) ;
+
+    addNode(n) ;
+
+    if ( trim_after )
+        trimWhiteAfter();
+
+
 
 }
 
-ContentNodePtr Parser::parseRaw() {
+ContentNodePtr Parser::parseRaw(bool br) {
     string res ;
+
+    if ( br ) res += '{' ;
 
     while ( pos_ ) {
         char c = *pos_ ;
+        if ( isspace(c) && trim_next_raw_block_ ) { ++pos_ ; continue ; }
         if ( c == '{' ) break ;
         else res += c ;
         ++pos_ ;
     }
 
-  //  cout << "raw: \"" << res << "\"" << endl ;
+    trim_next_raw_block_ = false ;
 
     return make_shared<RawTextNode>(res) ;
 }
@@ -755,7 +758,7 @@ NodePtr Parser::parseArray()
 
 bool Parser::parseKeyValuePair(string &key, NodePtr &val) {
     key.clear() ;
-    if ( !parseString(key) ) return false ;
+    if ( !parseName(key) ) return false ;
     if ( !expect(":") ) throwException("expected ':'") ;
     val = parseExpression() ;
     if ( !val ) throwException("expected expression") ;
@@ -885,10 +888,11 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     }
 
     if ( !val )
-        throwException("function argument parse error") ;
-
-    arg = make_pair(key, val) ;
-    return true ;
+        return false ;
+    else {
+        arg = make_pair(key, val) ;
+        return true ;
+    }
 }
 
 NodePtr Parser::parseVariable() {
@@ -1109,10 +1113,13 @@ void Parser::pushControlBlock(ContainerNodePtr node) {
 }
 
 void Parser::popControlBlock(const char *tag_name) {
+
+
+    current_ = nullptr;
     auto it = stack_.rbegin() ;
 
     while ( it != stack_.rend() ) {
-        auto n = *it ;
+
         if ( (*it)->tagName() == tag_name ) {
             stack_.pop_back() ; return ;
         } else if ( !(*it)->shouldClose() ) {
@@ -1122,7 +1129,27 @@ void Parser::popControlBlock(const char *tag_name) {
     }
 }
 
+extern void rtrim(std::string &) ;
+
+void Parser::trimWhiteBefore()
+{
+    if ( !current_ ) return ;
+
+    if ( RawTextNode *p = dynamic_cast<RawTextNode *>(current_.get()) ) {
+        rtrim(p->text_) ;
+        if ( p->text_.empty() ) { // erase child
+                stack_.back()->children_.pop_back() ;
+        }
+    }
+}
+
+void Parser::trimWhiteAfter() {
+    trim_next_raw_block_ = true ;
+}
+
 void Parser::addNode(ContentNodePtr node) {
+    current_ = node ;
+
     stack_.back()->addChild(node) ;
 }
 

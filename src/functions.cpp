@@ -85,19 +85,26 @@ static Variant _join(const Variant &args) {
     return res ;
 
 }
-/*
+
 static Variant _lower(const Variant &args) {
     Variant::Array unpacked ;
     unpack_args(args, { "str" }, unpacked) ;
-    return boost::to_lower_copy(unpacked[0].toString()) ;
+
+    string str = unpacked[0].toString() ;
+    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return std::tolower(c); });
+    return str ;
 }
 
 static Variant _upper(const Variant &args) {
     Variant::Array unpacked ;
     unpack_args(args, { "str" }, unpacked) ;
-    return boost::to_upper_copy(unpacked[0].toString()) ;
+
+    string str = unpacked[0].toString() ;
+    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return std::toupper(c); });
+    return str ;
+
 }
-*/
+
 
 static Variant _default(const Variant &args) {
     Variant::Array unpacked ;
@@ -274,8 +281,8 @@ static Variant _merge(const Variant &args) {
 
 FunctionFactory::FunctionFactory() {
     registerFunction("join", _join);
- //   registerFunction("lower", _lower);
- //   registerFunction("upper", _upper);
+    registerFunction("lower", _lower);
+    registerFunction("upper", _upper);
     registerFunction("default", _default);
     registerFunction("e", _escape);
     registerFunction("escape", _escape);

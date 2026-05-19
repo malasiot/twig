@@ -47,6 +47,11 @@ private:
         size_t line_ = 1;
     } ;
 
+
+    void addMacroBlock(const std::string &name, ContentNodePtr node) {
+           root_->macro_blocks_.insert({name, node}) ;
+    }
+
     struct Token {
         enum Type { LiteralString, LiteralDouble, LiteralInteger, LiteralBoolean, Name,
                     Raw, StartSubTag, EndSubTag, StartBlockTag, EndBlockTag } ;
@@ -60,6 +65,10 @@ private:
     const std::string &src_ ;
     Position pos_ ;
     std::deque<ContainerNodePtr> stack_ ;
+    ContentNodePtr current_ ;
+    DocumentNodePtr root_ ;
+    bool trim_prev_raw_block_ = false ;
+    bool trim_next_raw_block_ = false ;
 
 
 private:
@@ -79,8 +88,8 @@ private:
     bool parseIdentifier(std::string &name) ;
     void parseControlTag() ;
     void parseControlTagDeclaration() ;
-    ContentNodePtr parseSubstitutionTag() ;
-    ContentNodePtr parseRaw() ;
+    void parseSubstitutionTag() ;
+    ContentNodePtr parseRaw(bool) ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
     NodePtr parseFactor() ;
@@ -109,15 +118,13 @@ private:
     void pushControlBlock(ContainerNodePtr node) ;
     void popControlBlock(const char *tag_name);
     void addNode(ContentNodePtr node) ;
+    void trimWhiteBefore();
+    void trimWhiteAfter();
 
     bool decodeUnicode(uint &cp) ;
     static std::string unicodeToUTF8(uint cp) ;
 
     [[noreturn]] void  throwException(const std::string msg) ;
-
-
-
-
 
 };
 

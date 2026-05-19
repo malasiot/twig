@@ -18,6 +18,8 @@
 //                              {"values", Variant::Array{ {2,  "s" } } }
 //                }) ;
 //       cout << v.toJSON() << endl ;
+namespace twig {
+
 
 class Variant {
 
@@ -367,6 +369,8 @@ public:
             const Variant &val = current->fetchKey(subkey) ;
             if ( val.isUndefined() ) return val ;
 
+            start = end + 1 ;
+
             if ( end != std::string::npos ) current = &val ;
             else return val ;
         }
@@ -575,6 +579,12 @@ public:
         else return (data_.fp_)(args) ;
     }
 
+
+    // Parse JSON string into Variant. May optionaly throw a JSONParseException or otherwise return a Null ;
+    static Variant fromJSONString(const std::string &src, bool throw_exception = false) ;
+    static Variant fromJSONFile(const std::string &path, bool throw_exception = false) ;
+
+
 private:
 
 
@@ -703,4 +713,13 @@ private:
 };
 
 
+class JSONParseException: public std::runtime_error {
+public:
+
+    JSONParseException(const std::string &msg): std::runtime_error(msg) {
+    }
+
+};
+
+}
 #endif

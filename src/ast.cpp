@@ -231,11 +231,11 @@ Variant AttributeIndexingNode::eval(Context &ctx)
 }
 
 
-static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &ctx, const Variant &extra = {})
+static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &ctx, const Variant &extra, bool has_extra)
 {
     Variant::Array pos_args ;
 
-    if ( !extra.isUndefined() )
+    if ( has_extra )
         pos_args.push_back(extra) ;
 
     Variant::Object kv_args ;
@@ -255,7 +255,7 @@ static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &c
 static Variant evalFilter(const string &name, const key_val_list_t &args, const Variant &target, Context &ctx) {
 
     Variant evargs ;
-    evalArgs(args, evargs, ctx, target) ;
+    evalArgs(args, evargs, ctx, target, true) ;
     return FunctionFactory::instance().invoke(name, evargs) ;
 }
 
@@ -372,7 +372,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     Variant f = ctx.get(callable_) ;
 
     Variant args ;
-    evalArgs(args_, args, ctx) ;
+    evalArgs(args_, args, ctx, {}, false) ;
 
     if ( f.type() == Variant::Type::Function )
         return f.invoke(args) ;
@@ -721,13 +721,13 @@ Variant MatchesNode::eval(Context &ctx)
     return (bool)res ;
 }
 
-static inline void ltrim(std::string &s) {
+void ltrim(std::string &s) {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
         return !std::isspace(ch);
     }));
 }
 
-static inline void rtrim(std::string &s) {
+void rtrim(std::string &s) {
     s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
         return !std::isspace(ch);
     }).base(), s.end());
@@ -736,8 +736,6 @@ static inline void rtrim(std::string &s) {
 void SubstitutionBlockNode::eval(Context &ctx, string &res) const {
 
     string content = escape(expr_->eval(ctx), ctx.escape_mode_).toString() ;
-    if ( trim_left_ ) ltrim(content) ;
-    if ( trim_right_ ) rtrim(content) ;
 
     res.append(content) ;
 }
