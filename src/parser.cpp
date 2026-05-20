@@ -912,12 +912,17 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     Position cur = pos_ ;
     if ( parseName(key) ) {
         if ( expect('=') ) {
-            
             val = parseExpression() ;
             if ( !val ) return false ;
             arg = make_pair(key, val) ;
             return true ;
-                    throwException("expected expression after '=' in function argument") ;
+                    
+        } else if ( expect("=>") ) {
+            val = parseExpression() ;
+            if ( !val ) return false ;
+            arg = make_pair(key, val) ;
+            return true ;
+                    
         }
         else {
             pos_ = cur ;

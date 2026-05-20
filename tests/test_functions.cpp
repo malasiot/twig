@@ -92,3 +92,18 @@ TEST_F(FunctionTest, Capitalize) {
     }
    
 }
+
+TEST_F(FunctionTest, Filter) {
+  TemplateRenderer rdr(nullptr) ;
+
+  const string tmpl  =  R"({{ ["apple", "banana", "cherry"] | filter((item) => item | length > 5) }})";
+
+    try {
+        string output =  rdr.renderString(tmpl, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "banana cherry") ;
+      
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+   
+}

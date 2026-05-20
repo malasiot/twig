@@ -285,6 +285,13 @@ static Variant _capitalize(const Variant &args, Context &ctx) {
     return output;
 }
 
+static Variant _filter(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "lambda" }, unpacked) ;
+
+    return unpacked;
+}
+
 static Variant _batch(const Variant &args, Context &ctx) {
     Variant::Array unpacked, out ;
     unpack_args(args, { "items", "size", "fill?" }, unpacked) ;
@@ -461,6 +468,7 @@ FunctionFactory::FunctionFactory() {
     registerFilter("date", _date) ;
     registerFilter("abs", _abs) ;
     registerFilter("capitalize", _capitalize) ;
+    registerFilter("filter", _filter) ;
 
     registerFunction("range", range);
     registerFunction("cycle", cycle) ;
