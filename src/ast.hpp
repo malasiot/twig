@@ -155,6 +155,17 @@ private:
     NodePtr lhs_, rhs_ ;
 };
 
+class RangeOperatorNode: public Node {
+public:
+    RangeOperatorNode(NodePtr lhs, NodePtr rhs): lhs_(lhs), rhs_(rhs) {}
+
+    Variant eval(Context &ctx) ;
+
+private:
+    NodePtr lhs_, rhs_ ;
+};
+
+
 class BooleanNegationOperator: public Node {
 public:
     BooleanNegationOperator(NodePtr node): node_(node) {}

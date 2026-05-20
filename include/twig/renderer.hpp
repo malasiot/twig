@@ -30,7 +30,6 @@ public:
     std::string render(const std::string &resource, const Variant::Object &ctx) ;
     std::string renderString(const std::string &str, const Variant::Object &ctx) ;
     
-
     bool setDebug(bool debug = true) {
         debug_ = debug ;
     }
@@ -63,7 +62,6 @@ protected:
     private:
         std::map<std::string, Entry> compiled_ ;
         std::mutex guard_ ;
-
     };
 
 

@@ -333,10 +333,17 @@ bool Parser::parseIdentifier(string &name)
     string part ;
     while ( parseName(part) ) {
         name.append(part) ;
-        if ( expect('.') ) {
-            name += '.' ;
-            continue ;
-        } else break ;
+        Position cur = pos_ ;
+        if ( pos_ && *pos_ == '.' ) {
+            ++pos_ ;
+            if ( pos_ && *pos_ == '.' ) {
+                pos_ = cur ;
+                break ;
+            } else {
+                name += '.' ;
+            }
+        }
+        else break ;
     }
 
     return !name.empty() ;
@@ -401,6 +408,14 @@ void Parser::parseControlTagDeclaration() {
         if ( !expect("in") )
             throwException("'in' keyword expected") ;
         auto e = parseFilterExpression() ;
+
+        if ( expect("..") ) {
+            auto c = parseFilterExpression() ;
+            if ( !c ) throwException("expected expression after '..' in range expression") ;
+            e = make_shared<RangeOperatorNode>(e, c) ;
+        }
+      
+      
         if ( !e )
             throwException("missing for loop expression") ;
 
@@ -630,6 +645,22 @@ NodePtr Parser::parseFilterExpression()
         auto g = parseFilterExpressionReminder(lhs) ;
         if( !g ) return lhs ;
         else return g ;
+    } 
+
+    return nullptr ;
+}
+
+NodePtr Parser::parseRangeExpression()
+{
+    NodePtr lhs ;
+
+    if ( ( lhs = parseExpression()) ) {
+        if ( expect("..") ) {
+            auto rhs = parseExpression() ;
+            if ( !rhs )
+                throwException("expecting expression after '..' in range expression") ;
+            return NodePtr(new RangeOperatorNode(lhs, rhs)) ;
+        } else return lhs ;
     }
 
     return nullptr ;
@@ -878,14 +909,22 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     string key ;
     NodePtr val ;
 
+    Position cur = pos_ ;
     if ( parseName(key) ) {
         if ( expect('=') ) {
+            
             val = parseExpression() ;
+            if ( !val ) return false ;
+            arg = make_pair(key, val) ;
+            return true ;
+                    throwException("expected expression after '=' in function argument") ;
         }
-        else val = NodePtr(new IdentifierNode(key)) ;
-    } else {
-        val = parseExpression() ;
-    }
+        else {
+            pos_ = cur ;
+        }
+    } 
+
+    val = parseExpression() ;
 
     if ( !val )
         return false ;

@@ -1,8 +1,11 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.10)
 
 project (twig)
 
-add_definitions( -std=c++11 )
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+enable_testing()
 
 include_directories(include)
 
@@ -26,3 +29,6 @@ target_link_libraries(twig)
 
 add_executable(twig_exec main.cpp)
 target_link_libraries(twig_exec twig)
+
+# Include tests subdirectory
+add_subdirectory(tests)

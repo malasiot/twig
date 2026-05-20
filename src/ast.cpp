@@ -256,13 +256,43 @@ static Variant evalFilter(const string &name, const key_val_list_t &args, const 
 
     Variant evargs ;
     evalArgs(args, evargs, ctx, target, true) ;
-    return FunctionFactory::instance().invoke(name, evargs) ;
+    return FunctionFactory::instance().invoke(name, evargs, ctx) ;
 }
 
 Variant InvokeFilterNode::eval(Context &ctx)
 {
     Variant target = target_->eval(ctx) ;
     return evalFilter(name_, args_, target, ctx) ;
+}
+
+Variant RangeOperatorNode::eval(Context &ctx)
+{
+    Variant lhs = lhs_->eval(ctx) ;
+    Variant rhs = rhs_->eval(ctx) ;
+
+    if ( lhs.isNumber() && rhs.isNumber() ) {
+        int start = lhs.toInteger(), end = rhs.toInteger() ;
+        Variant::Array res ;
+        for ( int i = start ; i <= end ; i++ ) {
+            res.push_back(i) ;
+        }
+        return res ;
+    } else if ( lhs.isString() && rhs.isString() ) {
+        string start= lhs.toString() ;
+        string end = rhs.toString() ;
+
+        if ( start.size() == 1 && end.size() == 1 ) {
+            int s = (int)start[0], e = (int)end[0] ;
+            Variant::Array res ;
+            for ( int i = s ; i <= e ; i++ ) {
+                res.push_back(string(1, (char)i)) ;
+            }
+            return res ;
+        }
+    }
+            
+    throw TemplateRuntimeException("Invalid operands for range operator") ;
+    
 }
 
 Variant InvokeTestNode::eval(Context &ctx) {
@@ -294,7 +324,7 @@ void ForLoopBlockNode::eval(Context &ctx, string &res) const
             Variant::Object loop{ {"index0", counter},
                                   {"index", counter+1},
                                   {"revindex0", asize - counter - 1},
-                                  {"revindex1", asize - counter},
+                                  {"revindex", asize - counter},
                                   {"first", counter == 0},
                                   {"last", counter == asize-1},
                                   {"length", asize}
@@ -369,12 +399,18 @@ void FilterBlockNode::eval(Context &ctx, string &res) const
 
 Variant InvokeFunctionNode::eval(Context &ctx)
 {
-    Variant f = ctx.get(callable_) ;
-
     Variant args ;
     evalArgs(args_, args, ctx, {}, false) ;
 
-    if ( f.type() == Variant::Type::Function )
+    Variant f = ctx.get(callable_) ;
+    
+    if ( f.isUndefined() || f.isNull() ) {
+        FunctionFactory &ff = FunctionFactory::instance() ;
+        if ( ff.hasFunction(callable_) ) {
+            return ff.invoke(callable_, args, ctx) ; 
+        }
+            
+    } else if ( f.type() == Variant::Type::Function )
         return f.invoke(args) ;
     else
         throw TemplateRuntimeException("function invocation of non-callable variable") ;

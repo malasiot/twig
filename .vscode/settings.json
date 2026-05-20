@@ -1,3 +1,8 @@
 {
-    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}"
+    "cmake.buildDirectory": "${workspaceFolder}/build/${buildType}",
+    "cmake.ctest.testExplorerIntegrationEnabled": true,
+    "cmake.testExplorerIntegrationEnabled": true,
+    "cmake.configureOnOpen": true,
+    "cmake.autoSelectActiveFolder": true,
+    "cmake.options.statusBarVisibility": "visible"
 }
