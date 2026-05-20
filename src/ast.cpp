@@ -256,7 +256,7 @@ static Variant evalFilter(const string &name, const key_val_list_t &args, const 
 
     Variant evargs ;
     evalArgs(args, evargs, ctx, target, true) ;
-    return FunctionFactory::instance().invoke(name, evargs, ctx) ;
+    return FunctionFactory::instance().invokeFilter(name, evargs, ctx) ;
 }
 
 Variant InvokeFilterNode::eval(Context &ctx)
@@ -270,18 +270,11 @@ Variant RangeOperatorNode::eval(Context &ctx)
     Variant lhs = lhs_->eval(ctx) ;
     Variant rhs = rhs_->eval(ctx) ;
 
-    if ( lhs.isNumber() && rhs.isNumber() ) {
-        int start = lhs.toInteger(), end = rhs.toInteger() ;
-        Variant::Array res ;
-        for ( int i = start ; i <= end ; i++ ) {
-            res.push_back(i) ;
-        }
-        return res ;
-    } else if ( lhs.isString() && rhs.isString() ) {
+    if ( lhs.isString() && rhs.isString() ) {
         string start= lhs.toString() ;
         string end = rhs.toString() ;
 
-        if ( start.size() == 1 && end.size() == 1 ) {
+        if ( start.size() >= 1 && end.size() >= 1 ) {
             int s = (int)start[0], e = (int)end[0] ;
             Variant::Array res ;
             for ( int i = s ; i <= e ; i++ ) {
@@ -289,7 +282,14 @@ Variant RangeOperatorNode::eval(Context &ctx)
             }
             return res ;
         }
-    }
+    } else if ( lhs.isNumber() || rhs.isNumber() ) {
+        int start = lhs.toInteger(), end = rhs.toInteger() ;
+        Variant::Array res ;
+        for ( int i = start ; i <= end ; i++ ) {
+            res.push_back(i) ;
+        }
+        return res ;
+    } else 
             
     throw TemplateRuntimeException("Invalid operands for range operator") ;
     
@@ -407,7 +407,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     if ( f.isUndefined() || f.isNull() ) {
         FunctionFactory &ff = FunctionFactory::instance() ;
         if ( ff.hasFunction(callable_) ) {
-            return ff.invoke(callable_, args, ctx) ; 
+            return ff.invokeFunction(callable_, args, ctx) ; 
         }
             
     } else if ( f.type() == Variant::Type::Function )

@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <cassert>
+#include <chrono>
 
 // very lighweight write-only variant class e.g. to enable json responses and passed to template engines
 //
@@ -20,6 +21,14 @@
 //       cout << v.toJSON() << endl ;
 namespace twig {
 
+
+class TypeConversionException: public std::runtime_error {
+public:
+
+    TypeConversionException(const std::string &msg): std::runtime_error(msg) {
+    }
+
+};
 
 class Variant {
 
@@ -38,7 +47,7 @@ public:
     using Dictionary = std::map<std::string, std::string> ;
 
     enum class Type : uint8_t {
-        Undefined, Null,  Object, Array, String, SafeString, Boolean, Integer, Float, Function
+        Undefined, Null,  Object, Array, String, SafeString, Boolean, Integer, Float, Function, DateTime, Duration
     };
 
     // constructors
@@ -89,6 +98,20 @@ public:
         new (&data_.a_) Array(std::move(value)) ;
     }
 
+    // DateTime constructor from std::chrono::system_clock::time_point
+    Variant(const std::chrono::system_clock::time_point &tp): tag_(Type::DateTime) {
+        auto duration = tp.time_since_epoch() ;
+        auto secs = std::chrono::duration_cast<std::chrono::seconds>(duration) ;
+        data_.ts_ = secs.count() ;
+    }
+
+    // Duration constructor from std::chrono::duration
+    template<typename Rep, typename Period>
+    Variant(const std::chrono::duration<Rep, Period> &dur): tag_(Type::Duration) {
+        auto secs = std::chrono::duration_cast<std::chrono::seconds>(dur) ;
+        data_.ts_ = secs.count() ;
+    }
+
     ~Variant() {
         destroy() ;
     }
@@ -129,6 +152,11 @@ public:
             break;
         case Type::Function:
             new (&data_.fp_) Function(std::move(other.data_.fp_)) ;
+            break;
+        case Type::DateTime:
+        case Type::Duration:
+            data_.ts_ = other.data_.ts_ ;
+            break;
         default:
             break;
         }
@@ -186,6 +214,9 @@ public:
                 ( tag_ == Type::Boolean );
     }
 
+    bool isDateTime() const { return tag_ == Type::DateTime ; }
+    bool isDuration() const { return tag_ == Type::Duration ; }
+
     // check if variant stores simple type string, number, integer or boolean
     bool isPrimitive() const {
         return ( tag_ == Type::String ||
@@ -220,6 +251,26 @@ public:
             return std::to_string(data_.i_) ;
         case Type::Float:
             return std::to_string(data_.f_) ;
+        case Type::DateTime: {
+            auto tp = std::chrono::system_clock::time_point(std::chrono::seconds(data_.ts_)) ;
+            auto time = std::chrono::system_clock::to_time_t(tp) ;
+            std::ostringstream strm ;
+            strm << std::put_time(std::gmtime(&time), "%Y-%m-%dT%H:%M:%SZ") ;
+            return strm.str() ;
+        }
+        case Type::Duration: {
+            int64_t secs = data_.ts_ ;
+            std::ostringstream strm ;
+
+            if (secs < 60) {
+                strm << secs << "s" ;
+            } else if (secs < 3600) {
+                strm << (secs / 60) << "m" ;
+            } else {
+                strm << (secs / 3600) << "h" ;
+            }
+            return strm.str() ;
+        }
         default:
             return std::string();
         }
@@ -266,6 +317,9 @@ public:
             return (int64_t)data_.i_ ;
         case Type::Float:
             return (int64_t)data_.f_ ;
+        case Type::DateTime:
+        case Type::Duration:
+            return (int64_t)data_.ts_ ;
         default:
             return 0;
         }
@@ -284,7 +338,7 @@ public:
                 return static_cast<double>(std::stoll(data_.s_)) ;
             }
             catch ( ... ) {
-                return 0 ;
+                throw TypeConversionException("Cannot convert string to number: " + data_.s_) ;
             }
         }
 
@@ -294,6 +348,9 @@ public:
             return data_.i_ ;
         case Type::Float:
             return static_cast<double>(data_.f_) ;
+        case Type::DateTime:
+        case Type::Duration:
+            return static_cast<int64_t>(data_.ts_) ;
         default:
             return static_cast<int64_t>(0);
         }
@@ -312,8 +369,39 @@ public:
             return static_cast<bool>(data_.i_) ;
         case Type::Float:
             return static_cast<bool>(data_.f_ != 0.0f) ;
+        case Type::DateTime:
+        case Type::Duration:
+            return data_.ts_ != 0 ;
         default:
             return false;
+        }
+    }
+
+    // Get DateTime value in seconds since epoch
+    int64_t toDateTime() const {
+        switch (tag_)
+        {
+        case Type::DateTime:
+        case Type::Duration:
+            return data_.ts_ ;
+        case Type::Integer:
+            return data_.i_ ;
+        default:
+            return 0 ;
+        }
+    }
+
+    // Get Duration value in seconds
+    int64_t toDuration() const {
+        switch (tag_)
+        {
+        case Type::DateTime:
+        case Type::Duration:
+            return data_.ts_ ;
+        case Type::Integer:
+            return data_.i_ ;
+        default:
+            return 0 ;
         }
     }
 
@@ -451,6 +539,16 @@ public:
             strm << data_.i_ ;
             break ;
         }
+        case Type::DateTime: {
+            // Format as ISO 8601 timestamp in seconds or convert to string
+            strm << json_escape_string(toString()) ;
+            break ;
+        }
+        case Type::Duration: {
+            // Format duration as seconds
+            strm << json_escape_string(toString()) ;
+            break ;
+        }
         }
     }
 
@@ -575,6 +673,20 @@ public:
         return undefined_value ;
     }
 
+    // Factory methods for DateTime and Duration
+    static Variant dateTime(int64_t seconds_since_epoch) {
+        return Variant(std::chrono::system_clock::time_point(std::chrono::seconds(seconds_since_epoch))) ;
+    }
+
+    static Variant duration(int64_t seconds) {
+        return Variant(std::chrono::seconds(seconds)) ;
+    }
+
+    // Create from current system time
+    static Variant now() {
+        return Variant(std::chrono::system_clock::now()) ;
+    }
+
     Variant invoke(const Variant &args) {
         if ( tag_ != Type::Function ) return undefined() ;
         else return (data_.fp_)(args) ;
@@ -658,6 +770,10 @@ private:
         case Type::Function:
             data_.fp_.~Function() ;
             break ;
+        case Type::DateTime:
+        case Type::Duration:
+            // No cleanup needed for int64_t
+            break ;
         default:
             break ;
         }
@@ -689,6 +805,10 @@ private:
         case Type::Float:
             data_.f_ = other.data_.f_ ;
             break;
+        case Type::DateTime:
+        case Type::Duration:
+            data_.ts_ = other.data_.ts_ ;
+            break;
         default:
             break;
         }
@@ -704,6 +824,7 @@ private:
         signed_integer_t   i_ ;
         float_t     f_ ;
         Function fp_ ;
+        int64_t ts_ ;  // timestamp in seconds (for DateTime and Duration)
 
         Data() {}
         ~Data() {}
@@ -721,6 +842,7 @@ public:
     }
 
 };
+
 
 }
 #endif

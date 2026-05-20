@@ -30,14 +30,17 @@ public:
     }
 
     bool hasFunction(const std::string &name) ;
+    bool hasFilter(const std::string &name) ;
 
-    Variant invoke(const std::string &name, const Variant &args, Context &ctx) ;
+    Variant invokeFunction(const std::string &name, const Variant &args, Context &ctx) ;
+    Variant invokeFilter(const std::string &name, const Variant &args, Context &ctx) ;
 
     void registerFunction(const std::string &name, const TemplateFunction &f);
+    void registerFilter(const std::string &name, const TemplateFunction &f);
 
 private:
 
-    std::map<std::string, TemplateFunction> functions_ ;
+    std::map<std::string, TemplateFunction> functions_, filters_ ;
 };
 
 }

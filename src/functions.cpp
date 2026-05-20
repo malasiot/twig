@@ -1,4 +1,5 @@
 #include <twig/functions.hpp>
+#include <twig/date_helpers.hpp>
 #include <twig/exceptions.hpp>
 #include <twig/renderer.hpp>
 
@@ -11,15 +12,27 @@
 #include <regex>
 #include <map>
 
+#include <unicode/unistr.h>
+#include <unicode/locid.h>
+
 using namespace std ;
 
 namespace twig {
 
-Variant FunctionFactory::invoke(const string &name, const Variant &args, Context &ctx)
+Variant FunctionFactory::invokeFunction(const string &name, const Variant &args, Context &ctx)
 {
     auto it = functions_.find(name) ;
     if ( it == functions_.end() )
-        throw TemplateRuntimeException("Unknown function or filter: " + name) ;
+        throw TemplateRuntimeException("Unknown function: " + name) ;
+
+    return (it->second)(args, ctx) ;
+}
+
+Variant FunctionFactory::invokeFilter(const string &name, const Variant &args, Context &ctx)
+{
+    auto it = filters_.find(name) ;
+    if ( it == filters_.end() )
+        throw TemplateRuntimeException("Unknown filter: " + name) ;
 
     return (it->second)(args, ctx) ;
 }
@@ -28,6 +41,9 @@ void FunctionFactory::registerFunction(const string &name, const TemplateFunctio
     functions_[name] = f ;
 }
 
+void FunctionFactory::registerFilter(const string &name, const TemplateFunction &f) {
+    filters_[name] = f ;
+}
 
 void unpack_args(const Variant &args, const std::vector<std::string> &named_args, Variant::Array &res) {
 
@@ -143,174 +159,6 @@ static string escape_html(const string &src) {
     return buffer ;
 }
 
-static string to_lower_copy(const string &src) {
-    string tmp = src ;
-    std::transform(tmp.begin(), tmp.end(), tmp.begin(), [](unsigned char c){ return std::tolower(c); });
-    return tmp ;
-}
-
-static string php_date_format_to_strftime(const string &format) {
-    static const std::map<char, string> token_map = {
-        {'d', "%d"}, {'D', "%a"}, {'j', "%-d"}, {'l', "%A"}, {'F', "%B"},
-        {'m', "%m"}, {'M', "%b"}, {'n', "%-m"}, {'Y', "%Y"}, {'y', "%y"},
-        {'H', "%H"}, {'h', "%I"}, {'G', "%-H"}, {'g', "%-I"},
-        {'i', "%M"}, {'s', "%S"}, {'a', "%p"}, {'A', "%p"}, {'U', "%s"}
-    };
-
-    string result ;
-    result.reserve(format.size() * 2);
-
-    for ( size_t i = 0 ; i < format.size() ; ++i ) {
-        char c = format[i] ;
-        if ( c == '\\' && i + 1 < format.size() ) {
-            result.push_back(format[++i]) ;
-            continue ;
-        }
-
-        auto it = token_map.find(c) ;
-        if ( it != token_map.end() ) {
-            result.append(it->second) ;
-        } else {
-            result.push_back(c) ;
-        }
-    }
-
-    return result ;
-}
-
-static bool parse_fixed_date_formats(const string &src, std::tm &tm) {
-    static const vector<string> formats = {
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%Y-%m-%d",
-        "%Y/%m/%d %H:%M:%S",
-        "%Y/%m/%d %H:%M",
-        "%Y/%m/%d",
-        "%d.%m.%Y %H:%M:%S",
-        "%d.%m.%Y %H:%M",
-        "%d.%m.%Y",
-        "%b %d %Y %H:%M:%S",
-        "%b %d %Y %H:%M",
-        "%b %d %Y",
-        "%B %d %Y %H:%M:%S",
-        "%B %d %Y %H:%M",
-        "%B %d %Y"
-    };
-
-    for ( const auto &fmt: formats ) {
-        std::memset(&tm, 0, sizeof(tm));
-        char *end = strptime(src.c_str(), fmt.c_str(), &tm) ;
-        if ( end && *end == '\0' ) {
-            tm.tm_isdst = -1 ;
-            return true ;
-        }
-    }
-
-    return false ;
-}
-
-static bool apply_relative_offset(time_t &base, int64_t amount, const string &unit) {
-    auto tp = std::chrono::system_clock::from_time_t(base) ;
-    string lower_unit = to_lower_copy(unit) ;
-
-    if ( lower_unit == "second" || lower_unit == "seconds" ) {
-        tp += std::chrono::seconds(amount) ;
-    } else if ( lower_unit == "minute" || lower_unit == "minutes" ) {
-        tp += std::chrono::minutes(amount) ;
-    } else if ( lower_unit == "hour" || lower_unit == "hours" ) {
-        tp += std::chrono::hours(amount) ;
-    } else if ( lower_unit == "day" || lower_unit == "days" ) {
-        tp += std::chrono::hours(amount * 24) ;
-    } else if ( lower_unit == "week" || lower_unit == "weeks" ) {
-        tp += std::chrono::hours(amount * 24 * 7) ;
-    } else if ( lower_unit == "month" || lower_unit == "months" ) {
-        std::tm tm = *std::localtime(&base) ;
-        tm.tm_mon += static_cast<int>(amount) ;
-        tm.tm_isdst = -1 ;
-        base = std::mktime(&tm) ;
-        return true ;
-    } else if ( lower_unit == "year" || lower_unit == "years" ) {
-        std::tm tm = *std::localtime(&base) ;
-        tm.tm_year += static_cast<int>(amount) ;
-        tm.tm_isdst = -1 ;
-        base = std::mktime(&tm) ;
-        return true ;
-    } else {
-        return false ;
-    }
-
-    base = std::chrono::system_clock::to_time_t(tp) ;
-    return true ;
-}
-
-static time_t strtotime(const string &src) {
-    string lower_src = to_lower_copy(src) ;
-    if ( lower_src.empty() || lower_src == "now" )
-        return time(nullptr) ;
-
-    if ( lower_src == "today" ) {
-        auto now = time(nullptr) ;
-        std::tm tm = *std::localtime(&now) ;
-        tm.tm_hour = 0 ;
-        tm.tm_min = 0 ;
-        tm.tm_sec = 0 ;
-        tm.tm_isdst = -1 ;
-        return std::mktime(&tm) ;
-    }
-
-    if ( lower_src == "tomorrow" ) {
-        auto now = time(nullptr) ;
-        std::tm tm = *std::localtime(&now) ;
-        tm.tm_mday += 1 ;
-        tm.tm_hour = 0 ;
-        tm.tm_min = 0 ;
-        tm.tm_sec = 0 ;
-        tm.tm_isdst = -1 ;
-        return std::mktime(&tm) ;
-    }
-
-    if ( lower_src == "yesterday" ) {
-        auto now = time(nullptr) ;
-        std::tm tm = *std::localtime(&now) ;
-        tm.tm_mday -= 1 ;
-        tm.tm_hour = 0 ;
-        tm.tm_min = 0 ;
-        tm.tm_sec = 0 ;
-        tm.tm_isdst = -1 ;
-        return std::mktime(&tm) ;
-    }
-
-    bool all_digits = !src.empty() && (std::all_of(src.begin(), src.end(), ::isdigit) || (src[0] == '-' && src.size() > 1 && std::all_of(src.begin() + 1, src.end(), ::isdigit)));
-    if ( all_digits ) {
-        try {
-            return static_cast<time_t>(std::stoll(src)) ;
-        } catch (...) {
-        }
-    }
-
-    std::tm tm = {} ;
-    if ( parse_fixed_date_formats(src, tm) ) {
-        return std::mktime(&tm) ;
-    }
-
-    std::regex rel_re(R"(^([+-]?\d+)\s*(second|minute|hour|day|week|month|year)s?$)", std::regex::icase) ;
-    std::smatch match ;
-    if ( std::regex_match(lower_src, match, rel_re) ) {
-        time_t base = time(nullptr) ;
-        int64_t value = stoll(match[1].str()) ;
-        if ( apply_relative_offset(base, value, match[2].str()) )
-            return base ;
-    }
-
-    std::istringstream in(src) ;
-    in >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S") ;
-    if ( !in.fail() ) {
-        tm.tm_isdst = -1 ;
-        return std::mktime(&tm) ;
-    }
-
-    throw TemplateRuntimeException("Failed to parse date string: " + src) ;
-}
 
 Variant escape(const Variant &src, const string &escape_mode)
 {
@@ -336,7 +184,7 @@ static Variant _defined(const Variant &args, Context &ctx) {
     return !(unpacked[0].isUndefined() ) ;
 }
 
-static Variant _range(const Variant &args, Context &ctx) {
+static Variant range(const Variant &args, Context &ctx) {
     Variant::Array unpacked, result ;
     unpack_args(args, { "start", "end", "step?" }, unpacked) ;
 
@@ -391,6 +239,50 @@ static Variant _first(const Variant &args, Context &ctx) {
         return result ;
     }
     else return Variant::null() ;
+}
+
+static Variant _abs(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "value" }, unpacked) ;
+
+    try {
+        Variant num = unpacked[0].toNumber() ;
+        if ( num.type() == Variant::Type::Integer )
+            return Variant(std::abs(unpacked[0].toInteger())) ;
+        else if ( num.type() == Variant::Type::Float )
+            return Variant(std::abs(unpacked[0].toFloat())) ;
+        else if ( num.type() == Variant::Type::Boolean )
+            return Variant(unpacked[0].toBoolean()) ;
+        else
+            return Variant(std::abs(unpacked[0].toFloat())) ;
+    } catch ( const TypeConversionException & ) {
+        throw TemplateRuntimeException("abs filter expects a numeric value") ;
+    }
+}
+
+static Variant _capitalize(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "value" }, unpacked) ;
+
+    string val = unpacked[0].toString() ;
+    if ( val.empty() )
+        return val ;
+
+    icu::UnicodeString u = icu::UnicodeString::fromUTF8(val);
+    if ( u.isEmpty() )
+        return val ;
+
+    int32_t firstCharEnd = u.moveIndex32(0, 1);
+    icu::UnicodeString first = u.tempSubStringBetween(0, firstCharEnd);
+    first.toUpper(icu::Locale::getDefault());
+
+    icu::UnicodeString rest = u.tempSubString(firstCharEnd);
+    icu::UnicodeString result = first;
+    result.append(rest);
+
+    std::string output;
+    result.toUTF8String(output);
+    return output;
 }
 
 static Variant _batch(const Variant &args, Context &ctx) {
@@ -453,7 +345,7 @@ static Variant _merge(const Variant &args, Context &ctx) {
     else return unpacked[0] ;
 }
 
-static Variant _cycle(const Variant &args, Context &ctx) {
+static Variant cycle(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, { "src", "position?" }, unpacked) ;
     if ( !unpacked[0].isArray() )
@@ -465,45 +357,124 @@ static Variant _cycle(const Variant &args, Context &ctx) {
 
 static Variant _date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, { "src?", "format?", "tz?" }, unpacked) ;
+    unpack_args(args, { "src", "format?", "tz?" }, unpacked) ;
 
+    Variant src = unpacked[0] ;
+    string tz = unpacked[2].isUndefined() ? string() : unpacked[2].toString() ;
+    
     string format = ( unpacked[1].isUndefined() ) ? "F j, Y H:i" : unpacked[1].toString() ;
-    string src = ( unpacked[0].isUndefined() ) ? "now" : unpacked[0].toString() ;
 
-    time_t t = strtotime(src) ;
-    std::tm tm = *std::localtime(&t) ;
+    int64_t tms ;
+    if ( src.isString() ) {
+        try {
+            return strtotime(src.toString(), tz) ;
+        } catch ( const std::runtime_error & ) {
+            throw TemplateRuntimeException("Failed to parse date string: " + src.toString()) ;
+        }
+        
+    }
+    else if ( src.type() == Variant::Type::Integer ) {
+        tms = src.toInteger() ;
+    }
+    else if ( src.isDateTime() ) {
+        tms = src.toDateTime() ;
+    }
+    else if ( src.isDuration() ) {
+        tms = src.toDuration() ;
+    }
+    else
+        throw TemplateRuntimeException("date function expects a string, integer timestamp, DateTime or Duration as first argument") ;
+
     string strftime_format = php_date_format_to_strftime(format) ;
+
+    std::time_t t = static_cast<std::time_t>(tms) ;
+    tm tm ;
+    if ( tz.empty() ) {
+        // Use local timezone
+        localtime_r(&t, &tm) ;
+    } else {
+        // Convert to the specified timezone
+        int offset_seconds ;
+        if ( parse_timezone_offset(tz, offset_seconds) ) {
+            // Adjust the UTC timestamp by the timezone offset to get local time
+            // gmtime_r will then interpret the adjusted timestamp as UTC epoch,
+            // giving us the correct struct tm for that timezone
+            std::time_t adjusted = t + offset_seconds ;
+            gmtime_r(&adjusted, &tm) ;
+        } else {
+            // Fall back to local timezone if parsing fails
+            localtime_r(&t, &tm) ;
+        }
+    }
 
     char buffer[256] ;
     if ( std::strftime(buffer, sizeof(buffer), strftime_format.c_str(), &tm) == 0 )
         throw TemplateRuntimeException("Failed to format date string") ;
 
-    return string(buffer) ;
+    return Variant(buffer) ;
+
+}
+
+static Variant date(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src?", "tz?" }, unpacked) ;
+
+    auto t = unpacked[0] ;
+    string tz = unpacked[1].isUndefined() ? string() : unpacked[1].toString() ;
+
+    if ( t.isUndefined() ) return Variant::now() ;
+
+    if ( t.isString() ) {
+        try {
+            return strtotime(t.toString(), tz) ;
+        } catch ( const std::runtime_error & ) {
+            throw TemplateRuntimeException("Failed to parse date string: " + unpacked[0].toString()) ;
+        }
+    } else if ( t.type() == Variant::Type::Integer ) {
+        return unpacked[0].toInteger() ;
+    }
+    else if ( t.isDateTime() ) {
+        return t ;
+    }
+    else if ( t.isDuration() ) {
+        return t ;
+    }
+    else
+        throw TemplateRuntimeException("date function expects a string, integer timestamp, DateTime or Duration as first argument") ;
 }
 
 FunctionFactory::FunctionFactory() {
-    registerFunction("join", _join);
-    registerFunction("lower", _lower);
-    registerFunction("upper", _upper);
-    registerFunction("default", _default);
-    registerFunction("e", _escape);
-    registerFunction("escape", _escape);
-    registerFunction("defined", _defined);
-    registerFunction("range", _range);
-    registerFunction("length", _length);
-    registerFunction("first", _first);
-    registerFunction("last", _last);
-    registerFunction("raw", _raw);
-    registerFunction("safe", _raw);
-    registerFunction("batch", _batch);
-    registerFunction("merge", _merge);
-    registerFunction("cycle", _cycle) ;
-    registerFunction("date", _date) ;
+    registerFilter("join", _join);
+    registerFilter("lower", _lower);
+    registerFilter("upper", _upper);
+    registerFilter("default", _default);
+    registerFilter("e", _escape);
+    registerFilter("escape", _escape);
+    registerFilter("defined", _defined);
+    registerFilter("length", _length);
+    registerFilter("first", _first);
+    registerFilter("last", _last);
+    registerFilter("raw", _raw);
+    registerFilter("safe", _raw);
+    registerFilter("batch", _batch);
+    registerFilter("merge", _merge);
+    registerFilter("date", _date) ;
+    registerFilter("abs", _abs) ;
+    registerFilter("capitalize", _capitalize) ;
+
+    registerFunction("range", range);
+    registerFunction("cycle", cycle) ;
+    registerFunction("date",  date) ;
 }
 
 bool FunctionFactory::hasFunction(const string &name)
 {
     return functions_.count(name) ;
+}
+
+bool FunctionFactory::hasFilter(const string &name)
+{
+    return filters_.count(name) ;
 }
 
 }

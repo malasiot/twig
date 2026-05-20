@@ -929,7 +929,7 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     if ( !val )
         return false ;
     else {
-        arg = make_pair(key, val) ;
+        arg = make_pair(std::string(), val) ;
         return true ;
     }
 }
