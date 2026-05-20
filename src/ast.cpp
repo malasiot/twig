@@ -256,7 +256,7 @@ static Variant evalFilter(const string &name, const key_val_list_t &args, const 
 
     Variant evargs ;
     evalArgs(args, evargs, ctx, target, true) ;
-    return FunctionFactory::instance().invoke(name, evargs) ;
+    return FunctionFactory::instance().invoke(name, evargs, ctx) ;
 }
 
 Variant InvokeFilterNode::eval(Context &ctx)
@@ -407,7 +407,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     if ( f.isUndefined() || f.isNull() ) {
         FunctionFactory &ff = FunctionFactory::instance() ;
         if ( ff.hasFunction(callable_) ) {
-            return ff.invoke(callable_, args) ; 
+            return ff.invoke(callable_, args, ctx) ; 
         }
             
     } else if ( f.type() == Variant::Type::Function )

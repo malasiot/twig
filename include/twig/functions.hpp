@@ -10,7 +10,7 @@
 namespace twig {
 
 
-using TemplateFunction = std::function<Variant(const Variant &)>;
+using TemplateFunction = std::function<Variant(const Variant &, Context &ctx)>;
 
 // Unpack positional and named arguments passed to the function to the list of expected arguments
 // The named_args is a list of arguments names. If ending with '?' argument is optional. Non supplied arguments are given undefined value.
@@ -31,7 +31,7 @@ public:
 
     bool hasFunction(const std::string &name) ;
 
-    Variant invoke(const std::string &name, const Variant &args) ;
+    Variant invoke(const std::string &name, const Variant &args, Context &ctx) ;
 
     void registerFunction(const std::string &name, const TemplateFunction &f);
 

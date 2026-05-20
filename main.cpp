@@ -41,7 +41,11 @@ int main(int argc, char *argv[]) {
     } ;
 
     try {
-        cout << rdr.renderString(loop, ctx) << endl;
+        cout << rdr.renderString(R"(<title>{% block title %}xx{% endblock %}</title>
+
+<h1>{{ block('title') }}</h1>
+
+{% block body %}{% endblock %})", ctx) << endl;
 
         cout << rdr.renderString(R"({% if var ~ '/^[\\d\\.]+/' %}
     Do Stuff

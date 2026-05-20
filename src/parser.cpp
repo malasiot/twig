@@ -333,10 +333,17 @@ bool Parser::parseIdentifier(string &name)
     string part ;
     while ( parseName(part) ) {
         name.append(part) ;
-        if ( expect('.') ) {
-            name += '.' ;
-            continue ;
-        } else break ;
+        Position cur = pos_ ;
+        if ( pos_ && *pos_ == '.' ) {
+            ++pos_ ;
+            if ( pos_ && *pos_ == '.' ) {
+                pos_ = cur ;
+                break ;
+            } else {
+                name += '.' ;
+            }
+        }
+        else break ;
     }
 
     return !name.empty() ;
@@ -902,14 +909,22 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     string key ;
     NodePtr val ;
 
+    Position cur = pos_ ;
     if ( parseName(key) ) {
         if ( expect('=') ) {
+            
             val = parseExpression() ;
+            if ( !val ) return false ;
+            arg = make_pair(key, val) ;
+            return true ;
+                    throwException("expected expression after '=' in function argument") ;
         }
-        else val = NodePtr(new IdentifierNode(key)) ;
-    } else {
-        val = parseExpression() ;
-    }
+        else {
+            pos_ = cur ;
+        }
+    } 
+
+    val = parseExpression() ;
 
     if ( !val )
         return false ;

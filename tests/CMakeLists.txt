@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(twig_tests
     test_variant.cpp
     test_tags.cpp
+    test_functions.cpp
 )
 
 # Link against the main library and gtest
