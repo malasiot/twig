@@ -96,11 +96,11 @@ TEST_F(FunctionTest, Capitalize) {
 TEST_F(FunctionTest, Filter) {
   TemplateRenderer rdr(nullptr) ;
 
-  const string tmpl  =  R"({{ ["apple", "banana", "cherry"] | filter((item) => item | length > 5) }})";
+  const string tmpl  =  R"({{ [5, 10, 15, 20] | filter((item) => item > 10) | join(', ') }})";
 
     try {
         string output =  rdr.renderString(tmpl, Variant::Object()) ;
-        EXPECT_STREQ(output.c_str(), "banana cherry") ;
+        EXPECT_STREQ(output.c_str(), "15, 20") ;
       
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;

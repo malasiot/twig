@@ -2,14 +2,21 @@ cmake_minimum_required(VERSION 3.10)
 
 project (twig)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(APPLE)
+  list(APPEND CMAKE_PREFIX_PATH
+    "/opt/homebrew/opt/icu4c"
+    "/usr/local/opt/icu4c"
+  )
+endif()
 
 find_package(ICU REQUIRED COMPONENTS i18n uc)
 
 enable_testing()
 
-include_directories(include)
+include_directories(include ${ICU_INCLUDE_DIRS})
 
 add_library(twig SHARED
     src/parser.cpp

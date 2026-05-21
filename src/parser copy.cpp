@@ -273,8 +273,8 @@ bool Parser::parseRegexString(std::string &res)
     return false ;
 }
 
-NodePtr Parser::parseNumber() {
-    static std::regex rx_number(R"(^(-?(?:0|[1-9]\d*))(\.\d+)?([eE][+-]?\d+)?)") ;
+bool Parser::parseNumber(string &val) {
+    static std::regex rx_number(R"(^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)") ;
 
     Position cur = pos_ ;
 
@@ -283,41 +283,17 @@ NodePtr Parser::parseNumber() {
     smatch what ;
     if ( !regex_search(pos_.cursor_, pos_.end_, what, rx_number) ) {
         pos_ = cur ;
-        return nullptr ;
+        return false ;
     }
     else {
-        string val = what[0] ;
-        string dec = what[2] ;
-        string exp = what[3] ;
+        val = what[0] ;
         size_t len = val.length() ;
         pos_.cursor_ += len ;
         pos_.column_ += len ;
-        if ( dec.empty() && exp.empty() ) {
-          try {
-              int64_t i = stoll(val) ;
-              return NodePtr(new LiteralNode(i)) ;
-          } catch ( std::invalid_argument & ) {
-              pos_ = cur ;
-              return nullptr ;
-          } catch ( std::out_of_range & ) {
-              pos_ = cur ;
-              return nullptr ;
-          }
-        } else {
-            try {
-                double f = stod(val) ;
-                return NodePtr(new LiteralNode(f)) ;
-             } catch ( std::invalid_argument & ) {
-                pos_ = cur ;
-                return nullptr ;
-            } catch ( std::out_of_range & ) {
-                pos_ = cur ;
-                return nullptr ;
-            }
-        }
+        return true ;
     }
 }
-/**
+
 bool Parser::parseInteger(int64_t &val)
 {
     string num ;
@@ -350,7 +326,7 @@ bool Parser::parseDouble(double &val)
     }
 
     return false ;
-}*/
+}
 
 bool Parser::parseIdentifier(string &name)
 {
@@ -431,8 +407,14 @@ void Parser::parseControlTagDeclaration() {
             throwException("identifier list expected") ;
         if ( !expect("in") )
             throwException("'in' keyword expected") ;
-        auto e = parseExpression() ;
-    
+        auto e = parseFilterExpression() ;
+
+        if ( expect("..") ) {
+            auto c = parseFilterExpression() ;
+            if ( !c ) throwException("expected expression after '..' in range expression") ;
+            e = make_shared<RangeOperatorNode>(e, c) ;
+        }
+      
       
         if ( !e )
             throwException("missing for loop expression") ;
@@ -489,7 +471,7 @@ void Parser::parseControlTagDeclaration() {
     }  else if ( expect("endfilter") ) {
         popControlBlock("filter") ;
     } else if ( expect("extends") ) {
-        auto e = parseExpression() ;
+        auto e = parseFilterExpression() ;
         if ( !e )
             throwException("expecting expression") ;
         auto n = make_shared<ExtensionBlockNode>(e);
@@ -520,7 +502,7 @@ void Parser::parseControlTagDeclaration() {
         if ( expect("self") )
             e = nullptr ;
         else {
-            e = parseExpression() ;
+            e = parseFilterExpression() ;
             if ( !e )
                 throwException("expected expression") ;
         }
@@ -555,13 +537,13 @@ void Parser::parseControlTagDeclaration() {
     } else if ( expect("endimport") ) {
         popControlBlock("import") ;
     } else if ( ( is_embed = expect("embed") )|| ( is_include = expect("include") ) ) {
-        auto e = parseExpression() ;
+        auto e = parseFilterExpression() ;
         if ( !e ) throwException("expected expression") ;
         bool ignore_missing = false, with_only = false ;
         if ( expect("ignore") && expect("missing") ) ignore_missing = true ;
         NodePtr w ;
         if ( expect("with") )  {
-            w = parseExpression() ;
+            w = parseFilterExpression() ;
             if ( !w ) throwException("expected expression") ;
         }
         if ( expect("only"))
@@ -594,7 +576,7 @@ void Parser::parseControlTagDeclaration() {
         string id ;
         if ( parseName(id) ) {
             if ( expect("=") ) {
-                auto e = parseExpression() ;
+                auto e = parseFilterExpression() ;
                 if ( e )  {
                     auto n = make_shared<AssignmentBlockNode>(id, e) ;
                     addNode(n) ;
@@ -611,7 +593,7 @@ void Parser::parseSubstitutionTag() {
     if ( expect('-') )
         trimWhiteBefore();
 
-    NodePtr expr = parseExpression();
+    NodePtr expr = parseFilterExpression();
     if ( !expr )
         throwException("missing expression") ;
 
@@ -659,7 +641,7 @@ NodePtr Parser::parseFilterExpression()
 {
     NodePtr lhs ;
 
-    if ( ( lhs = parsePrimary())) {
+    if ( ( lhs = parseConditional())) {
         auto g = parseFilterExpressionReminder(lhs) ;
         if( !g ) return lhs ;
         else return g ;
@@ -737,255 +719,13 @@ NodePtr Parser::parseLambda() {
 
 NodePtr Parser::parseExpression()
 {
-    NodePtr expr = parseTernary() ;
-    return expr ;
-}
-
-NodePtr Parser::parseTernary() {
-    NodePtr lhs = parseNullCoalescing() ;
-
-    if ( lhs ) {
-        if ( expect("?:") ) {
-            auto false_expr = parseExpression() ;
-            if ( !false_expr )
-                throwException("expected expression after '?:' in ternary operator") ;
-      
-            return NodePtr(new TernaryOperatorNode(lhs, lhs, false_expr)) ;
-        }
-        else if ( expect('?') ) {
-            auto true_expr = parseExpression() ;
-            if ( !true_expr )
-                throwException("expected expression after ':' in ternary operator") ;
-            
-            NodePtr false_expr ;
-            if ( expect(':') ) {
-              false_expr = parseExpression() ;
-              if ( !false_expr )throwException("expected ':' in ternary operator") ;
-            }
-            return NodePtr(new TernaryOperatorNode(lhs, true_expr, false_expr)) ;
-        } 
-        else return lhs ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseNullCoalescing() {
-    auto left = parseOr();
-    if ( expect("??") ) {
-        auto right = parseNullCoalescing(); // right-associative
-        return NodePtr(new BinaryOperator("??", left, right)) ;
-    } else 
-        return left ;
-}
-
-NodePtr Parser::parseOr() {
-    auto left = parseAnd();
-    if ( expect("or") || expect("||") ) {
-        auto right = parseOr(); // right-associative
-        return NodePtr(new BooleanOperator(BooleanOperator::Or, left, right)) ;
-    } else 
-        return left ;
-}
-
-NodePtr Parser::parseAnd() {
-    auto left = parseNot();
-    if ( expect("and") || expect("&&") ) {
-        auto right = parseAnd(); // right-associative
-        return NodePtr(new BooleanOperator(BooleanOperator::And, left, right)) ;
-    } else 
-        return left ;
-}
-
-NodePtr Parser::parseNot() {
-    if ( expect("not") || expect("!") ) {
-        auto expr = parseNot();
-        return NodePtr(new UnaryOperator('!', expr)) ;
-    } else {
-        return parseComparison() ;
-    }
-}
-
-NodePtr Parser::parseComparison() {
-    auto lhs = parseRange() ;
-
-    ComparisonPredicate::Type type ;
-
-    if ( expect("!==" ) )
-        type = ComparisonPredicate::NotIdentical ;
-    else if ( expect("===") )
-        type = ComparisonPredicate::Identical ;
-    else if ( expect("!=") )
-        type = ComparisonPredicate::NotEqual ;
-    else if ( expect("==") )
-        type = ComparisonPredicate::Equal ;
-    else if ( expect('<') )
-        type = ComparisonPredicate::Less ;
-    else if ( expect('>') )
-        type = ComparisonPredicate::Greater ;
-    else if ( expect(">=") )
-        type = ComparisonPredicate::GreaterOrEqual ;
-    else if ( expect("<=") )
-        type = ComparisonPredicate::LessOrEqual ;
-    else if ( expect("matches") )
-        type = ComparisonPredicate::Matches ;
-     else if ( expect("not") && expect("in") )
-        type = ComparisonPredicate::NotIn ;
-     else if ( expect("in") )    
-        type = ComparisonPredicate::In ;
-    else if ( expect("starts") && expect("with") )
-        type = ComparisonPredicate::StartsWith ;
-    else if ( expect("ends") && expect("with") )
-        type = ComparisonPredicate::EndsWith ;
-    else if ( expect("has") ) {
-        if ( expect("some") )
-            type = ComparisonPredicate::HasSome ;
-        else if ( expect("every") )
-            type = ComparisonPredicate::HasEvery ;
-        else throwException("expected 'some' or 'every' after 'has' in predicate expression") ;
-    }
-    else
-        return lhs ;
-
-    auto rhs = parseRange() ;
-    if ( rhs )
-        return NodePtr(new ComparisonPredicate(type, lhs, rhs)) ;
-    else
-        throwException("expecting expression");
-}
-
-NodePtr Parser::parseRange() {
-    auto lhs = parseConcat() ;
-    if ( expect("..") ) {
-        auto rhs = parseConcat() ;
-        if ( !rhs )
-            throwException("expecting expression after '..' in range expression") ;
-        return NodePtr(new RangeOperatorNode(lhs, rhs)) ;
-    } else return lhs ;
-}
-
-NodePtr Parser::parseConcat() {
-    auto lhs = parseAddSub() ;
-    while ( expect('~') ) {
-        auto rhs = parseAddSub() ; 
-        lhs = NodePtr(new BinaryOperator("~", lhs, rhs)) ;
-    }
-    return lhs ;
-}
-
-NodePtr Parser::parseAddSub()
-{
-    NodePtr lhs = parseMulDiv();
-
-    while (true) {
-        if (expect('+')) {
-            auto rhs = parseMulDiv();
-            if (rhs)
-                return NodePtr(new BinaryOperator("+", lhs, rhs));
-            else
-                throwException("expecting expression after '+' in addition operator");
-        }
-        else if (expect("-}}", true)) { // ambiguity with '-' char
-            return lhs;
-        }
-        else if (expect("-%}", true)) {
-            return lhs;
-        }
-        else if (expect('-')) {
-            auto rhs = parseMulDiv();
-            if (rhs)
-                return NodePtr(new BinaryOperator("-", lhs, rhs));
-            else
-                throwException("expecting expression after '-' in subtraction operator");
-        }
-        else
-            return lhs;
-    }
-}
-
-NodePtr Parser::parseMulDiv()
-{
-    NodePtr lhs = parseTest() ;
-
-    while ( true ) {
-        if ( expect('*') ) {
-            auto rhs = parseTest() ;
-            if ( rhs )
-                lhs = NodePtr(new BinaryOperator("*", lhs, rhs)) ;
-            else
-                throwException("expecting expression after '*' in multiplication operator") ;
-        
-         } else if ( expect("//") ) {
-            auto rhs = parseTest() ;
-            if ( rhs )
-                lhs = NodePtr(new BinaryOperator("//", lhs, rhs)) ;
-            else
-                throwException("expecting expression after '//' in floor division operator") ;
-        }
-        else if ( expect('/') ) {
-            auto rhs = parseTest() ;
-            if ( rhs )
-                lhs = NodePtr(new BinaryOperator("/", lhs, rhs)) ;
-            else
-                throwException("expecting expression after '/' in division operator") ;
-        }
-        else if ( expect('%') ) {
-            auto rhs = parseTest() ;
-            if ( rhs )
-                lhs = NodePtr(new BinaryOperator("%", lhs, rhs)) ;
-            else
-                throwException("expecting expression after '%' in modulus operator") ;
-        }
-        else
-        return lhs ;
-    }
-     
-}
-
-NodePtr Parser::parseTest() {
-    auto lhs = parseExponent() ;
-    if ( expect("is") ) {
-        string name ;
-        key_val_list_t args ;
-        if ( parseName(name) ) {
-            if ( expect('(') ) {
-
-                key_val_t arg ;
-                while ( parseFunctionArg(arg) ) {
-                    args.emplace_back(arg) ;
-                    if ( expect(',') ) continue ;
-                    else break ;
-                }
-                if ( !expect(')') )
-                    throwException("No closing parenthesis") ;
-            }
-
-        } else throwException("test name expected") ;
-
-        return NodePtr(new TestExpressionNode(lhs, name, std::move(args))) ;
-    } else return lhs ;
-}
-
-NodePtr Parser::parseExponent() {
-    auto lhs = parseFilterExpression() ;
-    if ( expect("**") ) {
-        auto rhs = parseExponent() ; // right-associative
-        if ( rhs )
-            return NodePtr(new BinaryOperator("**", lhs, rhs)) ;
-        else
-            throwException("expecting expression after '**' in exponentiation operator") ;
-    } else return lhs ;
-}
-
-NodePtr Parser::parseExpression2()
-{
     NodePtr lhs, rhs ;
 
     if ( (lhs = parseTerm()) ) {
 
         if ( expect('+') ) {
             rhs = parseExpression() ;
-            return NodePtr(new BinaryOperator("+", lhs, rhs)) ;
+            return NodePtr(new BinaryOperator('+', lhs, rhs)) ;
         } else if ( expect("-}}", true )) { // ambiguity with '-' char
             return lhs ;
         } else if ( expect("-%}", true )) {
@@ -993,7 +733,7 @@ NodePtr Parser::parseExpression2()
         }
         else if ( expect('-') ) {
             rhs = parseExpression() ;
-            return NodePtr(new BinaryOperator("-", lhs, rhs)) ;
+            return NodePtr(new BinaryOperator('-', lhs, rhs)) ;
         }
         else return lhs ;
     }
@@ -1009,11 +749,11 @@ NodePtr Parser::parseTerm()
 
         if ( expect('*') ) {
             rhs = parseTerm() ;
-            return NodePtr(new BinaryOperator("*", lhs, rhs)) ;
+            return NodePtr(new BinaryOperator('*', lhs, rhs)) ;
         }
         else if ( expect('/') ) {
             rhs = parseTerm() ;
-            return NodePtr(new BinaryOperator("/", lhs, rhs)) ;
+            return NodePtr(new BinaryOperator('/', lhs, rhs)) ;
         }
         else return lhs ;
     }
@@ -1152,33 +892,24 @@ NodePtr Parser::parseNull()
 
 NodePtr Parser::parsePrimary() {
 
-  
 
-    if ( auto n = parseNumber() ) {
-        return n ;
-    }
+    int64_t lit_i ;
+    if ( parseInteger(lit_i) )
+        return NodePtr(new LiteralNode(lit_i)) ;
 
-   
+    double lit_d ;
+    if ( parseDouble(lit_d) )
+        return NodePtr(new LiteralNode(lit_d)) ;
 
     string lit_s ;
     if ( parseString(lit_s) )
         return NodePtr(new LiteralNode(lit_s)) ;
-
-    if ( auto b = parseBoolean() ) {
-        return b ;
-    }
 
     auto a = parseArray() ;
     if ( a ) return a ;
 
     auto o = parseObject() ;
     if ( o ) return o ;
-
- //     auto val = parseLambda() ;
-  //  if ( val ) return val ;
-
-       NodePtr e = parseVariable() ;
-    if ( e ) return e ;
 
     if ( expect('(') ) {
         NodePtr e = parseExpression() ;
@@ -1190,7 +921,8 @@ NodePtr Parser::parsePrimary() {
         return e ;
     }
 
- 
+    NodePtr e = parseVariable() ;
+    if ( e ) return e ;
 
     return nullptr ;
 }
@@ -1213,7 +945,11 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
         }
     } 
 
-  
+    val = parseLambda() ;
+    if ( val ) {
+        arg = make_pair(std::string(), val) ;
+        return true ;
+    }
 
     val = parseExpression() ;
 

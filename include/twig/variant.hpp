@@ -249,8 +249,13 @@ public:
         }
         case Type::Integer:
             return std::to_string(data_.i_) ;
-        case Type::Float:
-            return std::to_string(data_.f_) ;
+        case Type::Float: {
+            char buf[64];
+            // Use general format with sufficient precision and no unnecessary trailing zeros
+            int n = snprintf(buf, sizeof(buf), "%.15g", data_.f_);
+            if (n > 0) return std::string(buf);
+            return std::to_string(data_.f_);
+        }
         case Type::DateTime: {
             auto tp = std::chrono::system_clock::time_point(std::chrono::seconds(data_.ts_)) ;
             auto time = std::chrono::system_clock::to_time_t(tp) ;

@@ -133,12 +133,12 @@ private:
 
 class BinaryOperator: public Node {
 public:
-    BinaryOperator(int op, NodePtr lhs, NodePtr rhs): op_(op), lhs_(lhs), rhs_(rhs) {}
+    BinaryOperator(const std::string &op, NodePtr lhs, NodePtr rhs): op_(op), lhs_(lhs), rhs_(rhs) {}
 
     Variant eval(Context &ctx) ;
 
 private:
-    int op_ ;
+    std::string op_ ;
     NodePtr lhs_, rhs_ ;
 };
 
@@ -189,16 +189,31 @@ private:
 
 class ComparisonPredicate: public Node {
 public:
-    enum Type { Equal, NotEqual, Less, Greater, LessOrEqual, GreaterOrEqual } ;
+    enum Type { Equal, NotEqual, Less, Greater, LessOrEqual, GreaterOrEqual, 
+        NotIdentical, Identical, In, NotIn, HasSome, HasEvery, 
+        StartsWith, EndsWith, Matches } ;
 
     ComparisonPredicate(Type op, NodePtr lhs, NodePtr rhs): op_(op), lhs_(lhs), rhs_(rhs) {}
-
 
     Variant eval(Context &ctx) ;
 
 private:
     Type op_ ;
     NodePtr lhs_, rhs_ ;
+};
+
+class TestExpressionNode: public Node {
+public:
+  
+    TestExpressionNode(NodePtr lhs, const std::string &name, key_val_list_t &&args):
+        lhs_(lhs), name_(name), args_(args) {}
+
+    Variant eval(Context &ctx) ;
+
+private:
+    std::string name_ ;
+    key_val_list_t args_ ;
+    NodePtr lhs_ ;
 };
 
 class TernaryNode: public Node {
@@ -305,6 +320,30 @@ public:
 };
 
 typedef std::shared_ptr<ContainerNode> ContainerNodePtr ;
+
+class LambdaNode: public Node {
+public:
+
+    LambdaNode(const identifier_list_t &args, NodePtr body): args_(args), body_(body) {}
+
+    Variant eval(Context &ctx) ;
+private:
+    identifier_list_t args_ ;
+    NodePtr body_ ;
+};
+
+class TernaryOperatorNode: public Node {
+public:
+
+    TernaryOperatorNode(NodePtr condition, NodePtr true_expr, NodePtr false_expr):
+        condition_(condition), true_expr_(true_expr), false_expr_(false_expr) {}
+
+    Variant eval(Context &ctx) ;
+private:
+    NodePtr condition_, true_expr_, false_expr_ ;
+};
+
+typedef std::shared_ptr<LambdaNode> LambdaNodePtr ;
 
 class ForLoopBlockNode: public ContainerNode {
 public:

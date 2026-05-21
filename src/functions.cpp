@@ -37,12 +37,25 @@ Variant FunctionFactory::invokeFilter(const string &name, const Variant &args, C
     return (it->second)(args, ctx) ;
 }
 
+Variant FunctionFactory::invokeTest(const string &name, const Variant &args, Context &ctx)
+{
+    auto it = tests_.find(name) ;
+    if ( it == tests_.end() )
+        throw TemplateRuntimeException("Unknown test: " + name) ;
+
+    return (it->second)(args, ctx) ;
+}
+
 void FunctionFactory::registerFunction(const string &name, const TemplateFunction &f) {
     functions_[name] = f ;
 }
 
 void FunctionFactory::registerFilter(const string &name, const TemplateFunction &f) {
     filters_[name] = f ;
+}
+
+void FunctionFactory::registerTest(const string &name, const TemplateFunction &f) {
+    tests_[name] = f ;
 }
 
 void unpack_args(const Variant &args, const std::vector<std::string> &named_args, Variant::Array &res) {
@@ -287,9 +300,31 @@ static Variant _capitalize(const Variant &args, Context &ctx) {
 
 static Variant _filter(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, { "lambda" }, unpacked) ;
+    unpack_args(args, { "data", "lambda" }, unpacked) ;
 
-    return unpacked;
+    Variant data = unpacked[0] ;
+    Variant lambda = unpacked[1] ;
+    if ( lambda.type() != Variant::Type::Function )
+        throw TemplateRuntimeException("filter function expects a lambda as second argument") ;
+    if ( data.isArray() ) {
+        Variant::Array res ;
+        for( auto &e: data ) {
+            Variant::Array lambda_args { e } ;
+            if ( lambda.invoke(lambda_args).toBoolean() )
+                res.push_back(e) ;
+        }
+        return res ;
+    } else if ( data.isObject() ) {
+        Variant::Object res ;
+        for( auto it = data.begin() ; it != data.end() ; ++it ) {
+            Variant::Array kv { it.key(), it.value() } ;
+            if ( lambda.invoke(kv).toBoolean() )
+                res[it.key()] = it.value() ;
+        }
+        return res ;
+    } else
+        return data ;
+       
 }
 
 static Variant _batch(const Variant &args, Context &ctx) {

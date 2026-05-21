@@ -81,7 +81,7 @@ private:
 
     bool parseString(std::string &val) ;
     bool parseRegexString(std::string &val) ;
-    bool parseNumber(std::string &val) ;
+    NodePtr parseNumber() ;
     bool parseInteger(int64_t &val) ;
     bool parseDouble(double &val) ;
     bool parseName(std::string &name) ;
@@ -90,6 +90,7 @@ private:
     void parseControlTagDeclaration() ;
     void parseSubstitutionTag() ;
     ContentNodePtr parseRaw(bool) ;
+    NodePtr parseLambda() ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
     NodePtr parseFactor() ;
@@ -113,6 +114,21 @@ private:
     NodePtr parseMatchesPredicate(NodePtr lhs);
     NodePtr parseContainmentPredicate(NodePtr lhs);
     NodePtr parseTestPredicate(NodePtr lhs);
+    NodePtr parseTernary() ;
+    NodePtr parseNullCoalescing();
+    NodePtr parseExpression2() ;
+    NodePtr parseOr() ;
+    NodePtr parseAnd() ;
+    NodePtr parseNot() ;
+    NodePtr parseComparison() ;
+    NodePtr parseContainment() ;
+    NodePtr parseRange() ;
+    NodePtr parseConcat() ;
+    NodePtr parseAddSub() ;
+    NodePtr parseMulDiv() ;
+    NodePtr parseTest() ;
+    NodePtr parseExponent();
+
     bool parseNameList(identifier_list_t &ids);
     bool parseImportList(key_alias_list_t &ids);
 
@@ -142,7 +158,7 @@ private:
  *  Expression = Term ('+'|'-') Expression ;
  * Term = Factor ('*'|'/') Term
  * Factor = ('+'|'-')? Primary
- * Primary = Literal | Variable | FunctionCall | '(' Expression ')'
+ * Atom = Literal | Variable | FunctionCall | '(' Expression ')'
  * FunctionCall = Name '(' (Expression)* ')'
  * Variable = Identifier (IndexExpression)*
  * IndexExpr = DotIndexExpr | BracketIndexExpr

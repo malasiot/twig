@@ -54,13 +54,36 @@ static bool compare_numbers(const Variant &lhs, const Variant &rhs, ComparisonPr
 
 static bool variant_compare(const Variant &lhs, const Variant &rhs, ComparisonPredicate::Type op) {
 
+    if ( op == ComparisonPredicate::In || op == ComparisonPredicate::NotIn ) {
+        if ( rhs.isArray() ) {
+            for ( const auto &item: rhs ) {
+                if ( variant_compare(lhs, item, ComparisonPredicate::Equal) )
+                    return ( op == ComparisonPredicate::In ) ? true : false ;
+            }
+            return ( op == ComparisonPredicate::In ) ? false : true ;
+        } else if ( rhs.isString() && lhs.isString() ) {
+            string ls = lhs.toString(), rs = rhs.toString() ;
+            return ( rs.find(ls) != string::npos ) ? ( op == ComparisonPredicate::In ) ? true : false : ( op == ComparisonPredicate::In ) ? false : true ;
+        } else
+            throw TemplateRuntimeException("Right operand of 'in' operator must be an array or a string") ;
+    } else if ( op == ComparisonPredicate::StartsWith || op == ComparisonPredicate::EndsWith ) {
+    
+        string ls = lhs.toString(), rs = rhs.toString() ;
+        if ( op == ComparisonPredicate::StartsWith )
+            return ( ls.rfind(rs, 0) == 0 ) ;
+        else
+            return ( ls.size() >= rs.size() && ls.compare(ls.size() - rs.size(), rs.size(), rs) == 0 ) ;
+    }
+
     if ( lhs.isString() && rhs.isString() ) {
         string ls = lhs.toString(), rs = rhs.toString() ;
         int res = ls.compare(rs) ;
         switch ( op ) {
         case ComparisonPredicate::Equal:
+        case ComparisonPredicate::Identical:
             return res == 0 ;
         case ComparisonPredicate::NotEqual:
+        case ComparisonPredicate::NotIdentical:
             return res != 0 ;
         case ComparisonPredicate::Less:
             return res < 0 ;
@@ -76,8 +99,14 @@ static bool variant_compare(const Variant &lhs, const Variant &rhs, ComparisonPr
     if ( lhs.isNumber() && rhs.isNumber() ) {
         return compare_numbers(lhs, rhs, op) ;
     } else if ( lhs.isNumber() && rhs.isString() ) {
+        if ( op == ComparisonPredicate::Identical ) return false ;
+        else if ( op == ComparisonPredicate::NotIdentical ) return true ;
+        else
         return compare_numbers(lhs, rhs.toNumber(), op ) ;
     } else if ( lhs.isString() && rhs.isNumber() ) {
+         if ( op == ComparisonPredicate::Identical ) return false ;
+        else if ( op == ComparisonPredicate::NotIdentical ) return true ;
+        else
         return compare_numbers(lhs.toNumber(), rhs, op ) ;
     } else return compare_numbers((int64_t)&lhs, (int64_t)&rhs, op) ;
 
@@ -110,45 +139,50 @@ Variant IdentifierNode::eval(Context &ctx)
     }
 }
 
-static int64_t arithmetic(int64_t lhs, int64_t rhs, char op) {
-    switch ( op ) {
-    case '+':
+static int64_t arithmetic(int64_t lhs, int64_t rhs, const std::string &op) {
+    if  ( op == "+"  )
         return lhs + rhs ;
-    case '-':
+    else if ( op == "-" )
         return lhs - rhs ;
-    case '*':
+    else if ( op == "*" )
         return lhs * rhs ;
-    case '/':
+    else if ( op == "/" )
         return ( rhs ) ? (lhs / rhs) : 0 ;
-    case '%':
+    else if ( op == "%" )
         return ( rhs ) ? (lhs % rhs) : 0 ;
-    }
+    else if ( op == "**" )
+            return (int64_t)pow(lhs, rhs) ;
+    else
+        throw TemplateRuntimeException("Unknown operator: " + op) ;
 }
 
-static double arithmetic(double lhs, double rhs, char op) {
-    switch ( op ) {
-    case '+':
+static double arithmetic(double lhs, double rhs, const std::string &op) {
+   if ( op == "+" )
         return lhs + rhs ;
-    case '-':
+    else if ( op == "-" )
         return lhs - rhs ;
-    case '*':
+    else if ( op == "*" )
         return lhs * rhs ;
-    case '/':
-        return ( rhs != 0 ) ? (lhs / rhs) : 0.0 ;
-    case '%':
-        return ( (int64_t)rhs != 0) ? ((int64_t)lhs % (int64_t)rhs) : 0 ;
-    }
+    else if ( op == "/" )
+        return ( rhs != 0.0 ) ? (lhs / rhs) : 0.0 ;
+    else if ( op == "**" )
+        return pow(lhs, rhs) ;
+    else if ( op == "//" )
+        return ( rhs != 0.0 ) ? (int64_t)floor(lhs / rhs) : 0 ;
+    else if ( op == "%" )
+        return ( rhs != 0.0 ) ? (int64_t)fmod(lhs, rhs) : 0 ;
+    else
+        throw TemplateRuntimeException("Unknown operator: " + op) ;
 }
 
 
-static Variant arithmetic(const Variant &lhs, const Variant &rhs, char op) {
+static Variant arithmetic(const Variant &lhs, const Variant &rhs, const std::string &op) {
     if ( ( lhs.type() == Variant::Type::Integer || lhs.type() == Variant::Type::Boolean) && rhs.type() == Variant::Type::Float ) {
         return arithmetic(lhs.toFloat(), rhs.toFloat(), op) ;
     } else if ( lhs.type() == Variant::Type::Float && ( rhs.type() == Variant::Type::Integer || rhs.type() == Variant::Type::Boolean ) ) {
         return arithmetic(lhs.toFloat(), rhs.toFloat(), op) ;
     } else
         return arithmetic(lhs.toInteger(), rhs.toInteger(), op) ;
-
 }
 
 Variant BinaryOperator::eval(Context &ctx)
@@ -162,16 +196,17 @@ Variant BinaryOperator::eval(Context &ctx)
     if ( op2.isUndefined() || op2.isNull() )
         throw TemplateRuntimeException(str(boost::format("Undefined or null value on the right of %c operator") % (char)op_)) ;
 */
-    switch ( op_ ) {
-    case '+':
-    case '-':
-    case '*':
-    case '/':
-        return arithmetic(op1.toNumber(), op2.toNumber(), op_) ;
-    case '~':
+    if ( op_ == "??" ) {
+        if (op1.isUndefined() || op1.isNull()) return op2 ;
+        else return op1 ;
+    } else if ( op_ == "+" || op_ == "-" || op_ == "*" || op_ == "/" || op_ == "**" || op_ == "//"  || op_ == "%" )
+        return arithmetic(op1.toFloat(), op2.toFloat(), op_) ;
+    else if ( op_ == "~" )
         return op1.toString() + op2.toString() ;
-    }
+    else
+        throw TemplateRuntimeException("Unknown binary operator: " + op_) ;
 }
+
 
 
 Variant UnaryOperator::eval(Context &ctx)
@@ -179,7 +214,7 @@ Variant UnaryOperator::eval(Context &ctx)
     Variant val = rhs_->eval(ctx) ;
 
     if ( op_ == '-' ) {
-        return arithmetic(0, val, '-') ;
+        return arithmetic(0, val, "-") ;
     }
     else return val ;
 }
@@ -259,10 +294,23 @@ static Variant evalFilter(const string &name, const key_val_list_t &args, const 
     return FunctionFactory::instance().invokeFilter(name, evargs, ctx) ;
 }
 
+static Variant evalTest(const string &name, const key_val_list_t &args, const Variant &target, Context &ctx) {
+
+    Variant evargs ;
+    evalArgs(args, evargs, ctx, target, true) ;
+    return FunctionFactory::instance().invokeTest(name, evargs, ctx) ;
+}
+
 Variant InvokeFilterNode::eval(Context &ctx)
 {
     Variant target = target_->eval(ctx) ;
     return evalFilter(name_, args_, target, ctx) ;
+}
+
+Variant TestExpressionNode::eval(Context &ctx)
+{
+    Variant target = lhs_->eval(ctx) ;
+    return evalTest(name_, args_, target, ctx) ;
 }
 
 Variant RangeOperatorNode::eval(Context &ctx)
@@ -717,6 +765,28 @@ Variant ContainmentNode::eval(Context &ctx)
         if ( variant_compare(lhs, e, ComparisonPredicate::Equal) ) return true ;
     }
 
+    return false ;
+}
+
+Variant LambdaNode::eval(Context &ctx) {
+    return Variant([this, &ctx](const Variant &args) -> Variant {
+        Variant pos_args = args ;
+        if ( pos_args.length() != args_.size() )
+            throw TemplateRuntimeException("wrong number of arguments passed to lambda") ;
+        
+        Context cctx(ctx) ;
+        for( uint i = 0 ; i < args_.size() ; i++ ) {
+            cctx.data()[args_[i]] = pos_args.at(i) ;
+        }
+        Variant res = body_->eval(cctx);
+        return res.toBoolean() ;
+    });
+}
+
+Variant TernaryOperatorNode::eval(Context &ctx) {
+    if ( condition_->eval(ctx).toBoolean() )
+        return true_expr_->eval(ctx) ;
+    else return false_expr_ ? false_expr_->eval(ctx) : Variant::null() ;
 }
 
 #if 1
