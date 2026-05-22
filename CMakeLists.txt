@@ -28,6 +28,7 @@ add_library(twig SHARED
     src/loader.cpp
     src/json_parser.cpp
     src/date_helpers.cpp
+    src/format.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp

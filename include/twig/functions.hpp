@@ -11,7 +11,7 @@ namespace twig {
 
 
 using TemplateFunction = std::function<Variant(const Variant &, Context &ctx)>;
-
+using TestFunction = std::function<bool(const Variant &, Context &ctx)>;
 // Unpack positional and named arguments passed to the function to the list of expected arguments
 // The named_args is a list of arguments names. If ending with '?' argument is optional. Non supplied arguments are given undefined value.
 // Throws TemplateRuntimeException if not all required arguments are provided
@@ -39,11 +39,12 @@ public:
 
     void registerFunction(const std::string &name, const TemplateFunction &f);
     void registerFilter(const std::string &name, const TemplateFunction &f);
-    void registerTest(const std::string &name, const TemplateFunction &f);
+    void registerTest(const std::string &name, const TestFunction &f);
 
 private:
 
-    std::map<std::string, TemplateFunction> functions_, filters_, tests_ ;
+    std::map<std::string, TemplateFunction> functions_, filters_ ;
+    std::map<std::string, TestFunction> tests_ ;
 };
 
 }

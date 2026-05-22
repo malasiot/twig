@@ -692,7 +692,7 @@ public:
         return Variant(std::chrono::system_clock::now()) ;
     }
 
-    Variant invoke(const Variant &args) {
+    Variant invoke(const Variant &args) const {
         if ( tag_ != Type::Function ) return undefined() ;
         else return (data_.fp_)(args) ;
     }

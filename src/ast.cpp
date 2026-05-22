@@ -67,12 +67,29 @@ static bool variant_compare(const Variant &lhs, const Variant &rhs, ComparisonPr
         } else
             throw TemplateRuntimeException("Right operand of 'in' operator must be an array or a string") ;
     } else if ( op == ComparisonPredicate::StartsWith || op == ComparisonPredicate::EndsWith ) {
-    
         string ls = lhs.toString(), rs = rhs.toString() ;
         if ( op == ComparisonPredicate::StartsWith )
             return ( ls.rfind(rs, 0) == 0 ) ;
         else
             return ( ls.size() >= rs.size() && ls.compare(ls.size() - rs.size(), rs.size(), rs) == 0 ) ;
+    } else if ( op == ComparisonPredicate::HasSome ) {
+        if ( rhs.type() != Variant::Type::Function ) 
+            throw TemplateRuntimeException("need an arrow function for 'has some' test") ;
+        for( auto a: lhs ) {
+            Variant::Array args{a} ;
+            bool res = rhs.invoke(args).toBoolean();
+            if ( res ) return true ;
+        }
+        return false ;
+    } else if ( op == ComparisonPredicate::HasEvery ) {
+        if ( rhs.type() != Variant::Type::Function ) 
+            throw TemplateRuntimeException("need an arrow function for 'has every' test") ;
+        for( auto a: lhs ) {
+            Variant::Array args{a} ;
+            bool res = rhs.invoke(args).toBoolean();
+            if ( !res ) return false ;
+        }
+        return true ;
     }
 
     if ( lhs.isString() && rhs.isString() ) {
@@ -215,8 +232,15 @@ Variant UnaryOperator::eval(Context &ctx)
 
     if ( op_ == '-' ) {
         return arithmetic(0, val, "-") ;
+    } else if ( op_ == '!' ) {
+        return !val.toBoolean() ;
     }
     else return val ;
+}
+
+Variant SpreadOperator::eval(Context &ctx) {
+    Variant v = rhs_->eval(ctx) ;
+    return v ;
 }
 
 Variant ArrayNode::eval(Context &ctx)
@@ -224,7 +248,19 @@ Variant ArrayNode::eval(Context &ctx)
     Variant::Array a ;
 
     for ( NodePtr e: elements_ ) {
-        a.push_back(e->eval(ctx)) ;
+        if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.get()) ) {
+            Variant s = so->eval(ctx) ;
+           
+            if ( s.isArray() ) {
+                for ( auto &se: s ) {
+                    a.emplace_back(se) ;
+                }
+            } else if ( !s.isUndefined() && !s.isNull() ) {
+                throw TemplateRuntimeException("spread operator needs array variable");
+            }
+        } else {
+            a.push_back(e->eval(ctx)) ;
+        }
     }
 
     return a ;
@@ -245,23 +281,30 @@ Variant SubscriptIndexingNode::eval(Context &ctx)
 {
     Variant index = index_->eval(ctx) ;
 
-    Variant a ;
-    size_t pos = array_.find('.') ;
-    if ( pos == string::npos )
-        a = ctx.data()[array_] ;
-    else
-        a = ctx.data()[array_.substr(0, pos)].at(array_.substr(pos+1)) ;
+    if ( index.isUndefined() || index.isNull() )
+        throw TemplateRuntimeException("Undefined or null index in subscript indexing") ;
+    
+    Variant a = array_->eval(ctx) ;
 
-    if ( index.isString() )
-        return a.at(index.toString()) ;
+    if ( a.isUndefined() || a.isNull() || ( !a.isArray() && !a.isObject() ) ) {
+        return Variant::undefined() ;
+    }
+
+    if ( a.isArray() )
+        return a.at(index.toInteger());
     else
-        return a.at(index.toInteger()) ;
+        return a.at(index.toString()) ;
 }
 
-Variant AttributeIndexingNode::eval(Context &ctx)
-{
-
+Variant AttributeIndexingNode::eval(Context &ctx) {
     Variant o = dict_->eval(ctx) ;
+    if ( !o.isObject()) {
+        if ( except_on_null_ )
+            throw TemplateRuntimeException("Subscript operand applied to non-object") ;
+        else
+            return Variant::undefined() ;
+    } 
+
     return o.at(key_) ;
 }
 
@@ -276,8 +319,23 @@ static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &c
     Variant::Object kv_args ;
 
     for ( auto &&e: input_args ) {
-        if ( e.first.empty() )
-            pos_args.push_back(e.second->eval(ctx)) ;
+        if ( e.first.empty() ) {
+             if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.second.get()) ) {
+                Variant s = so->eval(ctx) ;
+
+                if ( s.isArray() ) {
+                    for( auto &se: s ) {
+                        pos_args.push_back(se) ;
+                    }
+                }
+                else if ( !s.isUndefined() && !s.isNull() ) {
+                    throw TemplateRuntimeException("spread operator needs array variable");
+                }  
+            }
+            else
+                pos_args.push_back(e.second->eval(ctx)) ;
+
+        }
         else
             kv_args.insert({e.first, e.second->eval(ctx)}) ;
     }
@@ -310,7 +368,11 @@ Variant InvokeFilterNode::eval(Context &ctx)
 Variant TestExpressionNode::eval(Context &ctx)
 {
     Variant target = lhs_->eval(ctx) ;
-    return evalTest(name_, args_, target, ctx) ;
+    key_val_list_t args ;
+    if ( args_ ) {
+        args.push_back(make_pair("", args_)) ;
+    } 
+    return evalTest(name_, args, target, ctx) ;
 }
 
 Variant RangeOperatorNode::eval(Context &ctx)
@@ -427,10 +489,12 @@ Variant TernaryExpressionNode::eval(Context &ctx)
     else return negative_ ? negative_->eval(ctx) : Variant::null() ;
 }
 */
-void AssignmentBlockNode::eval(Context &ctx, string &) const
-{
-    Variant val = val_->eval(ctx) ;
-    ctx.data()[id_] = val ;
+void AssignmentBlockNode::eval(Context &ctx, string &res) const {
+     Context cctx(ctx) ;
+     val_->eval(cctx) ;
+    for( auto &&c: children_ ) {
+        c->eval(cctx, res) ;  
+    }
 }
 
 void FilterBlockNode::eval(Context &ctx, string &res) const
@@ -450,6 +514,20 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     Variant args ;
     evalArgs(args_, args, ctx, {}, false) ;
 
+    if (IdentifierNode *node = dynamic_cast<IdentifierNode *>(callable_.get()) ) {
+        string fn_name = node->name() ;
+         FunctionFactory &ff = FunctionFactory::instance() ;
+         if ( ff.hasFunction(fn_name) ) {
+            return ff.invokeFunction(fn_name, args, ctx) ; 
+         }
+    }
+    Variant callable = callable_->eval(ctx) ;
+
+    if ( callable.type() == Variant::Type::Function )
+        return callable.invoke(args) ;
+    else
+        throw TemplateRuntimeException("function invocation of non-callable variable") ;
+/*
     Variant f = ctx.get(callable_) ;
     
     if ( f.isUndefined() || f.isNull() ) {
@@ -461,7 +539,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     } else if ( f.type() == Variant::Type::Function )
         return f.invoke(args) ;
     else
-        throw TemplateRuntimeException("function invocation of non-callable variable") ;
+        throw TemplateRuntimeException("function invocation of non-callable variable") ;*/
 }
 
 
@@ -781,6 +859,40 @@ Variant LambdaNode::eval(Context &ctx) {
         Variant res = body_->eval(cctx);
         return res.toBoolean() ;
     });
+}
+
+Variant AssignmentNode::eval(Context &ctx) {
+    Variant val = rhs_->eval(ctx) ;
+    if ( args_.size() == 1 ) {
+        ctx.data()[args_.front()] = val ;
+        return val ;
+    } else if ( type_ == ArrayDestructring && val.isArray()  ) {
+        Variant::Array arr ; 
+        for( uint i = 0 ; i < args_.size() ; i++ ) {
+            if ( args_[i].empty() ) continue ;
+            Variant v = val.at(i) ;
+            ctx.data()[args_[i]] = v;
+            arr.push_back(v) ;
+        }
+        return arr ;
+    } else if ( type_ == DictionaryDestructuring && val.isObject() ) {
+        Variant::Object obj ; 
+        for( const auto &kv: dict_args_ ) {
+            if ( kv.key_.empty() ) continue ;
+
+            Variant res = val.at(kv.key_) ;
+    
+            if ( !kv.alias_.empty() ) {
+                ctx.data()[kv.alias_] = res;
+                 obj[kv.key_] = res ;
+            } else {
+                ctx.data()[kv.key_] = res;
+                obj[kv.key_] = res ;
+            }
+        }
+        return obj ;
+    }
+    throw TemplateRuntimeException("invalid number of arguments for assignment operator") ;
 }
 
 Variant TernaryOperatorNode::eval(Context &ctx) {

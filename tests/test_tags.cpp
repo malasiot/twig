@@ -79,3 +79,24 @@ TEST_F(TagTest, ForBlockSequence) {
         FAIL() << "Compilation failed: " << e.what() ;
     }
 };
+
+TEST_F(TagTest, SetBlockSequence) {
+    TemplateRenderer rdr(nullptr) ;
+
+      vector<pair<string, string>> exprs{ 
+    { R"({% set name = 'Fabien' %}{{  name  }}{% endset %})", "Fabien" },
+    { R"({% set name = 'Fabien' %}{% set name = 'John' %}{{ name }})", "John" },
+    { R"({% set name = 'Fabien' %}{% set name = name|upper %}{{ name }})", "FABIEN" },
+    { R"({% set map = {'city': 'Paris'} %}{% set map = map|merge({country: 'France'}) %}{{ map.city }} {{ map.country }})", "Paris France" },
+};
+    
+    try {
+        for ( auto &&expr: exprs ) {
+            string output =  rdr.renderString(expr.first, {}) ;
+            EXPECT_STREQ(output.c_str(), expr.second.c_str()) ;
+        }
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};

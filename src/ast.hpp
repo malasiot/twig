@@ -55,8 +55,19 @@ public:
 
     Variant eval(Context &ctx) ;
 
+    const std::string name() const { return name_ ; }
+
 private:
     std::string name_ ;
+};
+
+class SpreadOperator: public Node {
+public:
+    SpreadOperator(NodePtr rhs): rhs_(rhs) {}
+
+    Variant eval(Context &ctx) ;
+public:
+   NodePtr rhs_ ;
 };
 
 class ArrayNode: public Node {
@@ -111,24 +122,28 @@ private:
 
 class SubscriptIndexingNode: public Node {
 public:
-    SubscriptIndexingNode(const std::string &array, NodePtr index): array_(array), index_(index) {}
+    SubscriptIndexingNode(NodePtr array, NodePtr index): array_(array), index_(index) {}
 
     Variant eval(Context &ctx) ;
 
 private:
-    std::string array_ ;
+    NodePtr array_ ;
     NodePtr index_ ;
 };
 
 class AttributeIndexingNode: public Node {
 public:
-    AttributeIndexingNode(const std::string &key, const NodePtr &dict): dict_(dict), key_(key) {}
+    AttributeIndexingNode(const NodePtr &dict, const std::string &key, bool except_on_null): 
+    dict_(dict), key_(key), except_on_null_(except_on_null) {}
+     AttributeIndexingNode(const NodePtr &dict, NodePtr key_node): dict_(dict), key_node_(key_node) {}
 
     Variant eval(Context &ctx) ;
 
 private:
     NodePtr dict_ ;
     std::string  key_ ;
+    NodePtr key_node_ ;
+    bool except_on_null_ ;
 };
 
 class BinaryOperator: public Node {
@@ -186,6 +201,26 @@ private:
     NodePtr rhs_ ;
 };
 
+class AssignmentNode: public Node {
+public:
+    enum Type { SingleVariable, ArrayDestructring, DictionaryDestructuring } ;
+    struct KeyAlias {
+        KeyAlias(const std::string &k, const std::string &a): key_(k), alias_(a) {}
+        std::string key_ ;
+        std::string alias_ ;
+    } ;
+
+    AssignmentNode(const std::string &name, NodePtr rhs): args_({name}), rhs_(rhs), type_(SingleVariable) {}
+    AssignmentNode(const identifier_list_t &args, NodePtr rhs): args_(args), rhs_(rhs), type_(ArrayDestructring) {}
+    AssignmentNode(const std::vector<KeyAlias> &args, NodePtr rhs): dict_args_(args), rhs_(rhs), type_(DictionaryDestructuring) {}
+
+    Variant eval(Context &ctx) ;
+private:
+    identifier_list_t args_ ;
+    std::vector<KeyAlias> dict_args_ ;
+    NodePtr rhs_ ;
+    Type type_ ;
+};  
 
 class ComparisonPredicate: public Node {
 public:
@@ -205,15 +240,15 @@ private:
 class TestExpressionNode: public Node {
 public:
   
-    TestExpressionNode(NodePtr lhs, const std::string &name, key_val_list_t &&args):
-        lhs_(lhs), name_(name), args_(args) {}
+    TestExpressionNode(NodePtr lhs, const std::string &name, NodePtr args, bool positive): 
+        lhs_(lhs), name_(name), args_(args),  positive_(positive) {}
 
     Variant eval(Context &ctx) ;
 
 private:
     std::string name_ ;
-    key_val_list_t args_ ;
-    NodePtr lhs_ ;
+    NodePtr lhs_, args_ ;
+    bool positive_ ;
 };
 
 class TernaryNode: public Node {
@@ -268,14 +303,14 @@ private:
 
 class InvokeFunctionNode: public Node {
 public:
-    InvokeFunctionNode(const std::string &callable, const key_val_list_t &&args = {}):
+    InvokeFunctionNode(NodePtr callable, const key_val_list_t &&args = {}):
         callable_(callable), args_(args) {}
 
     Variant eval(Context &ctx) ;
 
 
 private:
-    std::string callable_ ;
+    NodePtr callable_ ;
     key_val_list_t args_ ;
 };
 
@@ -473,7 +508,7 @@ public:
 class AssignmentBlockNode: public ContainerNode {
 public:
 
-    AssignmentBlockNode(const std::string &id, NodePtr val): id_(id), val_(val) { }
+    AssignmentBlockNode(NodePtr val): val_(val) { }
 
     void eval(Context &ctx, std::string &res) const override ;
 

@@ -17,6 +17,9 @@
 
 using namespace std ;
 
+
+extern std::string format(const std::string& fmt, const std::vector<twig::Variant>& args) ;
+
 namespace twig {
 
 Variant FunctionFactory::invokeFunction(const string &name, const Variant &args, Context &ctx)
@@ -54,7 +57,7 @@ void FunctionFactory::registerFilter(const string &name, const TemplateFunction 
     filters_[name] = f ;
 }
 
-void FunctionFactory::registerTest(const string &name, const TemplateFunction &f) {
+void FunctionFactory::registerTest(const string &name, const TestFunction &f) {
     tests_[name] = f ;
 }
 
@@ -327,6 +330,19 @@ static Variant _filter(const Variant &args, Context &ctx) {
        
 }
 
+static Variant _keys(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "data" }, unpacked) ;
+
+    if ( unpacked[0].isObject() ) {
+        Variant::Array res ;
+        for( auto it = unpacked[0].begin() ; it != unpacked[0].end() ; ++it )
+            res.push_back(it.key()) ;
+        return res ;
+    }
+    else return Variant::null() ;
+}
+
 static Variant _batch(const Variant &args, Context &ctx) {
     Variant::Array unpacked, out ;
     unpack_args(args, { "items", "size", "fill?" }, unpacked) ;
@@ -395,6 +411,18 @@ static Variant cycle(const Variant &args, Context &ctx) {
 
     int position = ( unpacked.size() > 1 ) ? unpacked[1].toInteger() : 0 ;
     return unpacked[0].at(position % unpacked[0].length()) ;
+}
+
+static Variant _format(const Variant &args, Context &ctx) {
+    Variant unpacked = args["args"] ;
+    string fmt = unpacked[0].toString() ;
+   
+    Variant::Array params ;
+    for(int i=1 ; i<unpacked.length() ; i++ ) {
+        params.push_back(unpacked[i]) ;
+    }
+     
+    return ::format(fmt, params);
 }
 
 static Variant _date(const Variant &args, Context &ctx) {
@@ -485,6 +513,77 @@ static Variant date(const Variant &args, Context &ctx) {
         throw TemplateRuntimeException("date function expects a string, integer timestamp, DateTime or Duration as first argument") ;
 }
 
+static Variant _trim(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "str", "chars?" }, unpacked) ;
+
+    string str = unpacked[0].toString() ;
+    string chars = unpacked[1].isUndefined() ? " \t\n\r\f\v" : unpacked[1].toString() ;
+
+    size_t start = str.find_first_not_of(chars) ;
+    if ( start == string::npos ) return "" ;
+    size_t end = str.find_last_not_of(chars) ;
+
+    return str.substr(start, end - start + 1) ;
+}
+
+static bool _even(const Variant &args, Context &ctx) {
+  Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].toInteger() % 2 == 0 ;
+}
+
+static bool _divisible_by(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src, divisor" }, unpacked) ;
+    return unpacked[0].toInteger() % unpacked[1].toInteger() == 0 ;
+}
+
+static bool _odd(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].toInteger() % 2 != 0 ;
+}
+
+static bool _is_defined(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return !unpacked[0].isUndefined() ;
+}
+
+static bool _empty(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].isUndefined() || unpacked[0].isNull() || ( unpacked[0].isString() && unpacked[0].toString().empty() ) ||
+           ( unpacked[0].isArray() && unpacked[0].length() == 0 ) ||
+           ( unpacked[0].isObject() && unpacked[0].length() == 0 ) ;
+}
+
+static bool _iterable(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].isArray() ||
+           unpacked[0].isObject()  ;
+}
+
+static bool _null(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].isNull() ;
+}
+
+static bool _sequence(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].isArray()  ;
+}
+
+static bool _map(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, { "src" }, unpacked) ;
+    return unpacked[0].isObject()  ;
+}
+
 FunctionFactory::FunctionFactory() {
     registerFilter("join", _join);
     registerFilter("lower", _lower);
@@ -504,10 +603,23 @@ FunctionFactory::FunctionFactory() {
     registerFilter("abs", _abs) ;
     registerFilter("capitalize", _capitalize) ;
     registerFilter("filter", _filter) ;
+    registerFilter("trim", _trim) ;
+    registerFilter("keys", _keys) ;
+    registerFilter("format", _format) ;
 
     registerFunction("range", range);
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
+
+    registerTest("divisible by", _divisible_by) ;
+    registerTest("even", _even) ;
+    registerTest("odd", _odd) ;
+    registerTest("defined", _is_defined) ;
+    registerTest("empty", _empty) ;
+    registerTest("iterable", _iterable) ;
+    registerTest("null", _null) ;
+    registerTest("sequence", _sequence) ;
+    registerTest("mapping", _map) ;
 }
 
 bool FunctionFactory::hasFunction(const string &name)

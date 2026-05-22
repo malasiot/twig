@@ -14,9 +14,9 @@ FetchContent_MakeAvailable(googletest)
 include_directories(${ICU_INCLUDE_DIRS})
 # Add test executable
 add_executable(twig_tests
- #   test_variant.cpp
- #   test_tags.cpp
- #   test_functions.cpp
+    test_variant.cpp
+    test_tags.cpp
+   test_functions.cpp
     test_expressions.cpp
 )
 

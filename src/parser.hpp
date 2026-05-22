@@ -86,11 +86,14 @@ private:
     bool parseDouble(double &val) ;
     bool parseName(std::string &name) ;
     bool parseIdentifier(std::string &name) ;
+    bool parseKeyAliases(std::vector<AssignmentNode::KeyAlias> &aliases);
     void parseControlTag() ;
     void parseControlTagDeclaration() ;
     void parseSubstitutionTag() ;
     ContentNodePtr parseRaw(bool) ;
+    NodePtr parseAssignment() ;
     NodePtr parseLambda() ;
+    NodePtr parseUnary() ;
     NodePtr parseExpression() ;
     NodePtr parseTerm() ;
     NodePtr parseFactor() ;
@@ -128,8 +131,10 @@ private:
     NodePtr parseMulDiv() ;
     NodePtr parseTest() ;
     NodePtr parseExponent();
+    NodePtr parsePostfix() ;
 
     bool parseNameList(identifier_list_t &ids);
+    bool parseKeyList(identifier_list_t &ids);
     bool parseImportList(key_alias_list_t &ids);
 
     void pushControlBlock(ContainerNodePtr node) ;
