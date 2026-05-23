@@ -263,7 +263,6 @@ TEST_F(ExpressiongTest, Spread) {
      {  R"({% set a = [] %}{{  [34, ...a] | join(',') }})", "34" },
      {  R"({{'Hello %s %s!'|format(...['Fabien', 'Potencier'])  }})", "Hello Fabien Potencier!" },
     
-
 };
 
     try {

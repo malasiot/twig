@@ -35,6 +35,7 @@ public:
 
 using key_val_t = std::pair<std::string, NodePtr> ;
 using key_val_list_t = std::vector<key_val_t> ;
+using arg_list_t = std::vector<NodePtr> ;
 using identifier_list_t = std::deque<std::string> ;
 using key_alias_t = std::pair<std::string, std::string> ;
 using key_alias_list_t = std::deque<key_alias_t> ;
@@ -271,24 +272,34 @@ public:
     }
 };
 */
+
+class FilterNode {
+public:
+    FilterNode(const std::string &name, arg_list_t &&args ={}): name_(name),
+        args_(args) {}
+
+    std::string name_ ;
+    arg_list_t args_ ;
+};
+
+using FilterNodePtr = std::shared_ptr<FilterNode> ;
+
+
 class InvokeFilterNode: public Node {
 public:
-    InvokeFilterNode(NodePtr target, const std::string &name, key_val_list_t &&args ={}): target_(target), name_(name),
-        args_(args) {}
+    InvokeFilterNode(NodePtr target, const std::vector<FilterNodePtr> &filters): target_(target), filters_(filters) {}
 
     Variant eval(Context &ctx) ;
 
-
 private:
     NodePtr target_ ;
-    std::string name_ ;
-    key_val_list_t args_ ;
+    std::vector<FilterNodePtr> filters_ ;
 };
 
 class InvokeTestNode: public Node {
 public:
     InvokeTestNode(NodePtr target, const std::string &name,
-                   key_val_list_t &&args, bool positive):
+                   arg_list_t &&args, bool positive):
         target_(target), name_(name), args_(args), positive_(positive) {}
 
     Variant eval(Context &ctx) ;
@@ -296,14 +307,14 @@ public:
 private:
     NodePtr target_ ;
     std::string name_ ;
-    key_val_list_t args_ ;
+    arg_list_t args_ ;
     bool positive_ ;
 };
 
 
 class InvokeFunctionNode: public Node {
 public:
-    InvokeFunctionNode(NodePtr callable, const key_val_list_t &&args = {}):
+    InvokeFunctionNode(NodePtr callable, const arg_list_t &&args = {}):
         callable_(callable), args_(args) {}
 
     Variant eval(Context &ctx) ;
@@ -311,7 +322,7 @@ public:
 
 private:
     NodePtr callable_ ;
-    key_val_list_t args_ ;
+    arg_list_t args_ ;
 };
 
 class DocumentNode ;
@@ -479,6 +490,19 @@ public:
 
     std::string mode_ ;
 };
+
+class VerbatimBlockNode: public ContainerNode {
+public:
+
+    VerbatimBlockNode(const std::string &content): content_(content) {}
+
+    void eval(Context &ctx, std::string &res) const override { res.append(content_) ; };
+
+    std::string tagName() const override { return "autoescape" ; }
+
+    std::string content_ ;
+};
+
 class IfBlockNode: public ContainerNode {
 public:
 
@@ -508,29 +532,42 @@ public:
 class AssignmentBlockNode: public ContainerNode {
 public:
 
-    AssignmentBlockNode(NodePtr val): val_(val) { }
+    AssignmentBlockNode(const identifier_list_t &names, const std::vector<NodePtr> &values): 
+    names_(names), values_(values) { }
 
     void eval(Context &ctx, std::string &res) const override ;
 
     std::string tagName() const override { return "set" ; }
     bool shouldClose() const override { return false ; }
 
-    NodePtr val_ ;
-    std::string id_ ;
+    std::vector<NodePtr> values_ ;
+    identifier_list_t names_ ;
+};
 
+class ApplyBlockNode: public ContainerNode {
+public:
+
+    ApplyBlockNode(const std::vector<FilterNodePtr> &filters): filters_(filters) {} 
+   
+    void eval(Context &ctx, std::string &res) const override ;
+
+    std::string tagName() const override { return "apply" ; }
+    bool shouldClose() const override { return true ; }
+
+    std::vector<FilterNodePtr> filters_ ;
 };
 
 class FilterBlockNode: public ContainerNode {
 public:
 
-    FilterBlockNode(const std::string &name, key_val_list_t &&args = {}): name_(name), args_(args) { }
+    FilterBlockNode(const std::string &name, arg_list_t &&args = {}): name_(name), args_(args) { }
 
     void eval(Context &ctx, std::string &res) const override ;
 
     std::string tagName() const override { return "filter" ; }
 
     std::string name_ ;
-    key_val_list_t args_ ;
+    arg_list_t args_ ;
 };
 
 class MacroBlockNode: public ContainerNode {

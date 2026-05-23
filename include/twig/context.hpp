@@ -45,7 +45,7 @@ public:
 
     std::map<std::string, detail::NamedBlockNodePtr> blocks_ ;
     TemplateRenderer &rdr_ ;
-    std::string escape_mode_ = "html";
+    std::string escape_mode_ = "no";
 };
 
 } // twig

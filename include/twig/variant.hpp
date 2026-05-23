@@ -36,7 +36,7 @@ public:
 
     using Object = std::map<std::string, Variant> ;
     using Array = std::vector<Variant> ;
-    using Function = std::function<Variant(const Variant &)> ;
+    using Function = std::function<Variant(const Variant::Array &)> ;
 
     using signed_integer_t = int64_t ;
     using unsigned_integer_t = uint64_t ;
@@ -692,7 +692,7 @@ public:
         return Variant(std::chrono::system_clock::now()) ;
     }
 
-    Variant invoke(const Variant &args) const {
+    Variant invoke(const Variant::Array &args) const {
         if ( tag_ != Type::Function ) return undefined() ;
         else return (data_.fp_)(args) ;
     }

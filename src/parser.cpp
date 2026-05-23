@@ -319,40 +319,34 @@ NodePtr Parser::parseNumber() {
         }
     }
 }
-/**
-bool Parser::parseInteger(int64_t &val)
-{
-    string num ;
-    if ( parseNumber(num) ) {
-        try {
-            val = stoll(num) ;
-            return true ;
-        } catch ( std::invalid_argument & ) {
-            return false ;
-        } catch ( std::out_of_range & ) {
-            return false ;
+
+void Parser::consume(const std::string &end_tag, std::string &res) {
+    while (true) {
+        
+        char c ;
+        while ( pos_ ) {
+            c = *pos_ ;
+            if ( c == '{' ) break ;
+            else res.push_back(c) ;
+            pos_++ ;
         }
+        pos_++ ;
+        Position cur  = pos_ ;
+        
+        if ( *pos_ == '%' ) {
+            pos_++ ;
+            if ( expect(end_tag.c_str()) && expect("%}") ) return ;
+            else { res.push_back('{') ; pos_ = cur ; } 
+        } else if ( *pos_ == '{' ) {
+            res.append("{{");
+            pos_++ ;
+        }else {
+            res.push_back(*pos_) ;
+        } 
+     
     }
 
-    return false ;
 }
-
-bool Parser::parseDouble(double &val)
-{
-    string num ;
-    if ( parseNumber(num) ) {
-        try {
-            val = stod(num) ;
-            return true ;
-        } catch ( std::invalid_argument & ) {
-            return false ;
-        } catch ( std::out_of_range & ) {
-            return false ;
-        }
-    }
-
-    return false ;
-}*/
 
 bool Parser::parseIdentifier(string &name)
 {
@@ -398,19 +392,19 @@ void  Parser::parseControlTag() {
     if ( expect('-') )
         trimWhiteBefore() ;
 
-    parseControlTagDeclaration() ;
+    bool consumed = parseControlTagDeclaration() ;
 
+    if ( !consumed ) {
+        if ( expect('-' ))
+            trimWhiteAfter() ;
 
-    if ( expect('-' ))
-        trimWhiteAfter() ;
-
-    if ( !expect("%}") )
-        throwException("Tag not closed while parsing block") ;
-
+        if ( !expect("%}") )
+            throwException("Tag not closed while parsing block") ;
+    }
 }
 
-void Parser::parseControlTagDeclaration() {
-    bool is_embed = false, is_include = false ;
+bool Parser::parseControlTagDeclaration() {
+    bool is_embed = false, is_include = false, consumed = false ;
     if ( expect("block") ) {
         string name ;
         if ( !parseName(name) )
@@ -441,7 +435,7 @@ void Parser::parseControlTagDeclaration() {
 
         NodePtr c ;
         if ( expect("if") )
-            c = parseConditional() ;
+            c = parseExpression() ;
 
         auto n = make_shared<ForLoopBlockNode>(std::move(ids), e, c);
         addNode(n) ;
@@ -454,7 +448,7 @@ void Parser::parseControlTagDeclaration() {
         else if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
             p->addBlock(nullptr) ;
     } else if ( expect("elif") ) {
-        auto e = parseConditional() ;
+        auto e = parseExpression() ;
         if ( !e )
             throwException("expecting conditional expression") ;
         if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
@@ -462,7 +456,7 @@ void Parser::parseControlTagDeclaration() {
     } else if ( expect("endif") ) {
         popControlBlock("if") ;
     } else if ( expect("if") ) {
-        auto e = parseConditional() ;
+        auto e = parseExpression() ;
         if ( !e )
             throwException("expecting conditional expression") ;
         auto n = make_shared<IfBlockNode>(e);
@@ -470,10 +464,10 @@ void Parser::parseControlTagDeclaration() {
         pushControlBlock(n) ;
     } else if ( expect("filter") ) {
         string name ;
-        key_val_list_t args ;
+        arg_list_t args ;
         if ( parseName(name) ) {
             if ( expect('(') ) {
-                key_val_t arg ;
+                NodePtr arg ;
                 while ( parseFunctionArg(arg) ) {
                     args.emplace_back(arg) ;
                     if ( expect(',') ) continue ;
@@ -592,18 +586,50 @@ void Parser::parseControlTagDeclaration() {
         pushControlBlock(n) ;
     } else if ( expect("endautoescape") ) {
         popControlBlock("autoescape") ;
-    } else if ( expect("set") ) {
-
-        auto e = parseAssignment() ;
-        if ( e ) {
-            auto n = make_shared<AssignmentBlockNode>(e) ;
+    } else if ( expect("apply") ) {
+        std::vector<FilterNodePtr> filters ;
+        if ( parseFilterChain(filters) ) {
+            auto n = make_shared<ApplyBlockNode>(filters) ;
             addNode(n) ;
             pushControlBlock(n) ;
-        } else throwException("invalid set block assignment") ;
-       
+        } else throwException("expected filter");
+    } else if ( expect("verbatim") ) {
+        if ( expect("%}")){
+            string content ;
+            consume("endverbatim", content) ;
+            auto n = make_shared<VerbatimBlockNode>(content) ;
+            addNode(n) ;
+            pushControlBlock(n) ;
+            consumed = true ;
+        }
+
+    } 
+    else if ( expect("endapply") ) {
+        popControlBlock("apply") ;
+    }
+    else if ( expect("set") ) {
+        identifier_list_t names ;
+        std::vector<NodePtr> values ;
+        if ( !parseNameList(names) ) 
+            throwException("name list expected") ;
+        if ( expect("=") ) {
+            if ( !parseExpressionList(values) ) 
+                throwException("expression list expected in assignmenet") ;
+            if ( values.size() != names.size() ) 
+                throwException("variables names should match the number of values") ;
+        }
+        if ( names.size() > 1 && values.empty() ) 
+            throwException("a single variable is expected") ;
+        
+        auto n = make_shared<AssignmentBlockNode>(names, values) ;
+        addNode(n) ;
+        pushControlBlock(n) ;
+        
     }  else if ( expect("endset") ) {
        popControlBlock("set") ;
     }
+
+    return consumed ;
 
 }
 
@@ -651,7 +677,6 @@ ContentNodePtr Parser::parseRaw(bool br) {
     return make_shared<RawTextNode>(res) ;
 }
 
-
 // f = e g | e
 // g = '|' name '(' args ')' g
 
@@ -659,11 +684,12 @@ NodePtr Parser::parseFilterExpression()
 {
     NodePtr lhs = parsePostfix() ;
 
-    while ( true ) {
-         auto g = parseFilterExpressionReminder(lhs) ;
-         if ( !g ) break ;
-         else lhs = g ;
-    }
+    if ( expect('|') ) {
+        vector<FilterNodePtr> filters ;
+        if ( parseFilterChain(filters) ) {
+            return NodePtr(new InvokeFilterNode(lhs, filters));
+        }
+    } else return lhs ;
 
    return lhs ;
 }
@@ -699,8 +725,8 @@ NodePtr Parser::parsePostfix()
          } 
          else if ( expect('(') ) {
 
-            key_val_list_t args ;
-            key_val_t arg ;
+            arg_list_t args ;
+            NodePtr arg ;
             while ( parseFunctionArg(arg) ) {
                 args.push_back(arg);
 
@@ -719,49 +745,27 @@ NodePtr Parser::parsePostfix()
     return lhs ;
 }
 
-NodePtr Parser::parseRangeExpression()
-{
-    NodePtr lhs ;
-
-    if ( ( lhs = parseExpression()) ) {
-        if ( expect("..") ) {
-            auto rhs = parseExpression() ;
-            if ( !rhs )
-                throwException("expecting expression after '..' in range expression") ;
-            return NodePtr(new RangeOperatorNode(lhs, rhs)) ;
-        } else return lhs ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseFilterExpressionReminder(NodePtr parent)
-{
-    key_val_list_t args ;
-
-    if ( expect('|') ) {
-        string name ;
-        if ( parseName(name) ) {
-            if ( expect('(') ) {
-
-                key_val_t arg ;
-                while ( parseFunctionArg(arg) ) {
-                    args.emplace_back(arg) ;
-                    if ( expect(',') ) continue ;
-                    else break ;
-                }
-                if ( !expect(')') )
-                    throwException("No closing parenthesis") ;
+bool Parser::parseFilterChain(std::vector<FilterNodePtr> &filters) {
+    string name ;
+    while ( parseName(name) ) {
+        if ( expect('(') ) {
+            NodePtr arg ;
+            arg_list_t args ;
+            while ( parseFunctionArg(arg) ) {
+                args.emplace_back(arg) ;
+                if ( !expect(',') ) break ;
             }
+            if ( !expect(')') )
+                throwException("No closing parenthesis") ;
 
-        } else throwException("filter name expected") ;
+            filters.emplace_back(FilterNodePtr(new FilterNode(name, std::move(args))));
+        } else {
+            filters.emplace_back(FilterNodePtr(new FilterNode(name, {})));
+        }
 
-        auto n = NodePtr(new InvokeFilterNode(parent, name, std::move(args))) ;
-        auto e = parseFilterExpressionReminder(n) ;
-        if ( e ) return e ;
-        else return n;
+        if ( !expect("|") ) break ;
     }
-    else return nullptr ;
+    return !filters.empty() ;
 }
 
 NodePtr Parser::parseLambda() {
@@ -1124,48 +1128,6 @@ NodePtr Parser::parseUnary() {
     } else return parseFilterExpression() ;
 }
 
-NodePtr Parser::parseTerm()
-{
-    NodePtr lhs, rhs ;
-
-    if ( (lhs = parseFactor()) ) {
-
-        if ( expect('*') ) {
-            rhs = parseTerm() ;
-            return NodePtr(new BinaryOperator("*", lhs, rhs)) ;
-        }
-        else if ( expect('/') ) {
-            rhs = parseTerm() ;
-            return NodePtr(new BinaryOperator("/", lhs, rhs)) ;
-        }
-        else return lhs ;
-    }
-
-    return nullptr ;
-
-
-
-}
-NodePtr Parser::parseFactor()
-{
-    bool negative = false ;
-    if ( expect('-') )
-        negative = true ;
-    else if ( expect('+') )
-        negative = false ;
-
-    NodePtr e = parsePrimary() ;
-
-    if ( e ) {
-        if ( negative )
-            return NodePtr(new UnaryOperator('-', e)) ;
-        else
-            return e ;
-    } else
-        return nullptr ;
-}
-
-
 NodePtr Parser::parseArray()
 {
     Variant::Array elements ;
@@ -1235,6 +1197,16 @@ bool Parser::parseKeyList(identifier_list_t &ids) {
     }
 
     return count > 0 ;
+}
+
+bool Parser::parseExpressionList(std::vector<NodePtr> &l) {
+    NodePtr e ;
+    while ( e = parseExpression() ) {
+        l.push_back(e) ;
+        if ( !expect(',') ) break ;
+    }
+
+    return !l.empty() ;
 }
 
 bool Parser::parseKeyAliases(std::vector<AssignmentNode::KeyAlias> &aliases) {
@@ -1317,30 +1289,15 @@ NodePtr Parser::parseNull()
 
 
 NodePtr Parser::parsePrimary() {
-
-  
-
-    if ( auto n = parseNumber() ) {
-        return n ;
-    }
-
-   
-
+    if ( auto n = parseNumber() ) return n ;
+    
     string lit_s ;
     if ( parseString(lit_s) )
         return NodePtr(new LiteralNode(lit_s)) ;
 
-    if ( auto b = parseBoolean() ) {
-        return b ;
-    }
-
-    auto a = parseArray() ;
-    if ( a ) return a ;
-
-    auto o = parseObject() ;
-    if ( o ) return o ;
-
-    
+    if ( auto b = parseBoolean() ) return b ;
+    if ( auto a = parseArray() ) return a ;
+    if ( auto o = parseObject() ) return o ;
 
     if ( expect('(') ) {
         NodePtr e = parseExpression() ;
@@ -1352,16 +1309,13 @@ NodePtr Parser::parsePrimary() {
         return e ;
     }
       
-    NodePtr e = parseVariable() ;
-     if ( e ) return e ;
-
+    if ( NodePtr e = parseVariable() ) return e ;
 
     return nullptr ;
 }
 
-bool Parser::parseFunctionArg(key_val_t &arg) {
+bool Parser::parseFunctionArg(NodePtr &val) {
     string key ;
-    NodePtr val ;
 
     if ( expect("...") ) {
         NodePtr pe = parseExpression() ;
@@ -1372,12 +1326,7 @@ bool Parser::parseFunctionArg(key_val_t &arg) {
     } else 
         val = parseExpression() ;
 
-    if ( !val )
-        return false ;
-    else {
-        arg = make_pair(std::string(), val) ;
-        return true ;
-    }
+    return val != nullptr ;
 }
 
 NodePtr Parser::parseVariable() {
@@ -1388,193 +1337,11 @@ NodePtr Parser::parseVariable() {
     return nullptr ;
 }
 
-NodePtr Parser::parseConditional()
-{
-    NodePtr lhs, rhs ;
-
-    if ( (lhs = parseBooleanTerm()) ) {
-        if ( expect("||") ) {
-            rhs = parseConditional() ;
-            return NodePtr(new BooleanOperator(BooleanOperator::Or, lhs, rhs)) ;
-        }
-        else return lhs ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseBooleanTerm()
-{
-    NodePtr lhs, rhs ;
-
-    if ( (lhs = parseBooleanFactor()) ) {
-        if ( expect("&&") ) {
-            rhs = parseBooleanTerm() ;
-            return NodePtr(new BooleanOperator(BooleanOperator::And, lhs, rhs)) ;
-        }
-        else return lhs ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseBooleanFactor() {
-    bool negative = false ;
-    if ( expect('!') )
-        negative = true ;
-
-    auto e = parseBooleanPrimary() ;
-
-    if ( e ) {
-        if ( negative )
-            return NodePtr(new BooleanNegationOperator(e)) ;
-        else
-            return e ;
-    } else
-        return nullptr ;
-}
-
-
-NodePtr Parser::parseBooleanPrimary() {
-    auto e = parseBooleanPredicate() ;
-    if ( e ) return e ;
-
-    if ( expect('(') ) {
-        auto e = parseConditional() ;
-        if ( !e ) throwException("expected expression") ;
-        if ( !expect(')') )
-            throwException("closing parenthesis missing") ;
-        return e ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseBooleanPredicate() {
-
-    auto e = parseExpression() ;
-    if ( !e ) return nullptr ;
-
-    NodePtr p ;
-    p = parseComparisonPredicate(e) ;
-    if ( p ) return p ;
-
-    p = parseContainmentPredicate(e) ;
-    if ( p ) return p ;
-
-    p = parseMatchesPredicate(e) ;
-    if ( p ) return p ;
-
-    p = parseTestPredicate(e) ;
-    if ( p ) return p ;
-
-    return e ;
-
-}
-
-NodePtr Parser::parseComparisonPredicate(NodePtr lhs) {
-    ComparisonPredicate::Type type ;
-
-    if ( expect("!=") )
-        type = ComparisonPredicate::NotEqual ;
-    else if ( expect("==") )
-        type = ComparisonPredicate::Equal ;
-    else if ( expect('<') )
-        type = ComparisonPredicate::Less ;
-    else if ( expect('>') )
-        type = ComparisonPredicate::Greater ;
-    else if ( expect(">=") )
-        type = ComparisonPredicate::GreaterOrEqual ;
-    else if ( expect("<=") )
-        type = ComparisonPredicate::LessOrEqual ;
-    else
-        return nullptr ;
-
-    auto rhs = parseExpression() ;
-    if ( rhs )
-        return NodePtr(new ComparisonPredicate(type, lhs, rhs)) ;
-    else
-        throwException("expecting expression");
-}
-
-NodePtr Parser::parseContainmentPredicate(NodePtr lhs) {
-    bool positive = true ;
-    if ( expect("not") )
-        positive = false ;
-
-    if ( expect("in") ) {
-        auto rhs = parseExpression() ;
-        if ( rhs )
-            return NodePtr(new ContainmentNode(lhs, rhs, positive)) ;
-        else
-        throwException("expecting expression");
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseTestPredicate(NodePtr lhs) {
-
-    if ( expect("is") ) {
-
-        bool positive = true ;
-        if ( expect("not") )
-            positive = false ;
-
-        key_val_list_t args ;
-        string name ;
-
-        if ( parseName(name) ) {
-            if ( expect('(') ) {
-
-                key_val_t arg ;
-                while ( parseFunctionArg(arg) ) {
-                    args.emplace_back(arg) ;
-                    if ( expect(',') ) continue ;
-                    else break ;
-                }
-                if ( !expect(')') )
-                    throwException("No closing parenthesis") ;
-            }
-
-            return NodePtr(new InvokeTestNode(lhs, name, std::move(args), positive)) ;
-        } else throwException("function name expected") ;
-    }
-
-    return nullptr ;
-}
-
-NodePtr Parser::parseMatchesPredicate(NodePtr lhs) {
-
-    bool positive = true ;
-
-    if ( expect('~') )
-        positive = true ;
-    else if ( expect("!~") )
-        positive = false ;
-    else
-        return nullptr ;
-
-    string rx ;
-    if ( !parseString(rx) )
-        throwException("expecting regular expression literal") ;
-
-    try {
-        return NodePtr(new MatchesNode(lhs, rx, positive)) ;
-    } catch ( std::regex_error &e ) {
-        throwException("invalid regular expression: " + string(e.what())) ;
-    }
-    return NodePtr()  ;
-
-}
-
 void Parser::pushControlBlock(ContainerNodePtr node) {
     stack_.push_back(node) ;
 }
 
 void Parser::popControlBlock(const char *tag_name) {
-
-
     current_ = nullptr;
     auto it = stack_.rbegin() ;
 

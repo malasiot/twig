@@ -82,13 +82,11 @@ private:
     bool parseString(std::string &val) ;
     bool parseRegexString(std::string &val) ;
     NodePtr parseNumber() ;
-    bool parseInteger(int64_t &val) ;
-    bool parseDouble(double &val) ;
     bool parseName(std::string &name) ;
     bool parseIdentifier(std::string &name) ;
     bool parseKeyAliases(std::vector<AssignmentNode::KeyAlias> &aliases);
     void parseControlTag() ;
-    void parseControlTagDeclaration() ;
+    bool parseControlTagDeclaration() ;
     void parseSubstitutionTag() ;
     ContentNodePtr parseRaw(bool) ;
     NodePtr parseAssignment() ;
@@ -104,27 +102,17 @@ private:
     NodePtr parseBoolean() ;
     NodePtr parseNull() ;
     NodePtr parseFilterExpression();
-    NodePtr parseFilterExpressionReminder(NodePtr parent);
     bool parseKeyValuePair(std::string &key, NodePtr &val);
-    bool parseFunctionArg(key_val_t &arg);
-    NodePtr parseRangeExpression();
-    NodePtr parseConditional();
-    NodePtr parseBooleanTerm();
-    NodePtr parseBooleanFactor();
-    NodePtr parseBooleanPrimary();
-    NodePtr parseBooleanPredicate();
-    NodePtr parseComparisonPredicate(NodePtr lhs);
-    NodePtr parseMatchesPredicate(NodePtr lhs);
-    NodePtr parseContainmentPredicate(NodePtr lhs);
-    NodePtr parseTestPredicate(NodePtr lhs);
+    bool parseFunctionArg(NodePtr &arg);
+  
     NodePtr parseTernary() ;
     NodePtr parseNullCoalescing();
-    NodePtr parseExpression2() ;
+
     NodePtr parseOr() ;
     NodePtr parseAnd() ;
     NodePtr parseNot() ;
     NodePtr parseComparison() ;
-    NodePtr parseContainment() ;
+
     NodePtr parseRange() ;
     NodePtr parseConcat() ;
     NodePtr parseAddSub() ;
@@ -132,6 +120,9 @@ private:
     NodePtr parseTest() ;
     NodePtr parseExponent();
     NodePtr parsePostfix() ;
+    bool parseExpressionList(std::vector<NodePtr> &l) ;
+    bool parseFilterChain(std::vector<FilterNodePtr> &filters);
+    void consume(const std::string &end_tag, std::string &res);
 
     bool parseNameList(identifier_list_t &ids);
     bool parseKeyList(identifier_list_t &ids);
@@ -146,30 +137,9 @@ private:
     bool decodeUnicode(uint &cp) ;
     static std::string unicodeToUTF8(uint cp) ;
 
-    [[noreturn]] void  throwException(const std::string msg) ;
+    [[noreturn]] void throwException(const std::string msg) ;
 
 };
-
-/*
- * Conditional = BooleanTerm OR  Conditional
- * BooleanTerm = BooleanFactor AND BooleanTerm
- * BooleanFactor = BooleanPrimary | NOT BooleanPrimary
- * BooleanPrimary = Predicate | RoutineInvocation | '(' Conditional ')'
- * Predicate = Expression | ComparisonPredicate | NullPredicate | LikePredicate
- * ComparisonPredicate = Expression ( '<' | '>' | '==' | '!=' ) Expression
- * LikePredicate = Expression ( 'NOT' )? 'LIKE' Expression
- * NullPredicate Expression 'IS' ('NOT')? 'NULL'
- *  RangePredicate = Expression ('..' Expression)?
- *  Expression = Term ('+'|'-') Expression ;
- * Term = Factor ('*'|'/') Term
- * Factor = ('+'|'-')? Primary
- * Atom = Literal | Variable | FunctionCall | '(' Expression ')'
- * FunctionCall = Name '(' (Expression)* ')'
- * Variable = Identifier (IndexExpression)*
- * IndexExpr = DotIndexExpr | BracketIndexExpr
- * DotIndexExpr = '.' Identifier
- * BracketIndexExpr = '[' expression ']'
-*/
 
 
 class ParseException {

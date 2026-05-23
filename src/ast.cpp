@@ -12,6 +12,9 @@ extern Variant escape(const Variant &src, const string &escape_mode) ;
 
 namespace detail {
 
+
+
+
 Variant BooleanOperator::eval(Context &ctx) {
     switch ( op_ ) {
     case And:
@@ -309,68 +312,60 @@ Variant AttributeIndexingNode::eval(Context &ctx) {
 }
 
 
-static void evalArgs(const key_val_list_t &input_args, Variant &args, Context &ctx, const Variant &extra, bool has_extra)
+static void evalArgs(const arg_list_t &input_args, Variant::Array &args, Context &ctx)
 {
-    Variant::Array pos_args ;
-
-    if ( has_extra )
-        pos_args.push_back(extra) ;
-
-    Variant::Object kv_args ;
-
     for ( auto &&e: input_args ) {
-        if ( e.first.empty() ) {
-             if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.second.get()) ) {
-                Variant s = so->eval(ctx) ;
+        if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.get()) ) {
+            Variant s = so->eval(ctx) ;
 
-                if ( s.isArray() ) {
-                    for( auto &se: s ) {
-                        pos_args.push_back(se) ;
-                    }
+            if ( s.isArray() ) {
+                for( auto &se: s ) {
+                    args.push_back(se) ;
                 }
-                else if ( !s.isUndefined() && !s.isNull() ) {
-                    throw TemplateRuntimeException("spread operator needs array variable");
-                }  
             }
-            else
-                pos_args.push_back(e.second->eval(ctx)) ;
-
+            else if ( !s.isUndefined() && !s.isNull() ) {
+                throw TemplateRuntimeException("spread operator needs array variable");
+            }  
         }
         else
-            kv_args.insert({e.first, e.second->eval(ctx)}) ;
+            args.push_back(e->eval(ctx)) ;
     }
-
-    args = Variant::Object{{"args", pos_args}, {"kw", kv_args}} ;
 }
 
+static Variant evalFilter(const string &name, const arg_list_t &args, const Variant &target, Context &ctx) {
 
-
-static Variant evalFilter(const string &name, const key_val_list_t &args, const Variant &target, Context &ctx) {
-
-    Variant evargs ;
-    evalArgs(args, evargs, ctx, target, true) ;
-    return FunctionFactory::instance().invokeFilter(name, evargs, ctx) ;
+    Variant::Array evargs ;
+    evalArgs(args, evargs, ctx) ;
+    return FunctionFactory::instance().invokeFilter(name, target, evargs, ctx) ;
 }
 
-static Variant evalTest(const string &name, const key_val_list_t &args, const Variant &target, Context &ctx) {
+static Variant evalTest(const string &name, const arg_list_t &args, const Variant &target, Context &ctx) {
 
-    Variant evargs ;
-    evalArgs(args, evargs, ctx, target, true) ;
-    return FunctionFactory::instance().invokeTest(name, evargs, ctx) ;
+    Variant::Array evargs ;
+    evalArgs(args, evargs, ctx) ;
+    return FunctionFactory::instance().invokeTest(name, target, evargs, ctx) ;
+}
+
+static Variant applyFilter(const Variant &target, const std::vector<FilterNodePtr> &filters, Context &ctx) {
+    Variant res = target ;
+    for( FilterNodePtr filter: filters ) {
+        res = evalFilter(filter->name_, filter->args_, res, ctx ) ;
+    }
+    return res ;
 }
 
 Variant InvokeFilterNode::eval(Context &ctx)
 {
     Variant target = target_->eval(ctx) ;
-    return evalFilter(name_, args_, target, ctx) ;
+    return applyFilter(target, filters_, ctx) ;
 }
 
 Variant TestExpressionNode::eval(Context &ctx)
 {
     Variant target = lhs_->eval(ctx) ;
-    key_val_list_t args ;
+    arg_list_t args ;
     if ( args_ ) {
-        args.push_back(make_pair("", args_)) ;
+        args.push_back(args_) ;
     } 
     return evalTest(name_, args, target, ctx) ;
 }
@@ -490,11 +485,34 @@ Variant TernaryExpressionNode::eval(Context &ctx)
 }
 */
 void AssignmentBlockNode::eval(Context &ctx, string &res) const {
-     Context cctx(ctx) ;
-     val_->eval(cctx) ;
-    for( auto &&c: children_ ) {
-        c->eval(cctx, res) ;  
+    if ( names_.size() == 1 && values_.empty() ) { // block assignment
+        string subres ;
+        for( auto &&c: children_ ) {
+            c->eval(ctx, subres) ;  
+        }
+        ctx.data_.insert_or_assign(names_[0], subres) ;
+    } else {
+        Context cctx(ctx) ;
+        for( size_t i = 0 ; i< names_.size() ; i++ ) {
+            const auto &key = names_[i] ;
+            Variant val = values_[i]->eval(ctx) ;
+            cctx.data_.insert_or_assign(key, val) ;
+        }
+        for( auto &&c: children_ ) {
+            c->eval(cctx, res) ;  
+        }
     }
+}
+
+
+void ApplyBlockNode::eval(Context &ctx, string &res) const {
+// render block content
+    string block_res ;
+    for( auto &&c: children_ )
+        c->eval(ctx, block_res) ;
+
+    Variant v = applyFilter(block_res, filters_, ctx) ;
+    res.append(v.toString());
 }
 
 void FilterBlockNode::eval(Context &ctx, string &res) const
@@ -511,8 +529,8 @@ void FilterBlockNode::eval(Context &ctx, string &res) const
 
 Variant InvokeFunctionNode::eval(Context &ctx)
 {
-    Variant args ;
-    evalArgs(args_, args, ctx, {}, false) ;
+    Variant::Array args ;
+    evalArgs(args_, args, ctx) ;
 
     if (IdentifierNode *node = dynamic_cast<IdentifierNode *>(callable_.get()) ) {
         string fn_name = node->name() ;

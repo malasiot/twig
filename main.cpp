@@ -52,9 +52,9 @@ int main(int argc, char *argv[]) {
 {% endif %})", Variant::Object({{"var", "23xx"}})) << endl ;
 
   cout << rdr.renderString(R"({% set data = lipsum(40) %}{{ data }})", Variant::Object({{"var", "Hello, World!<html>"}, {
-    "lipsum", Variant::Function([](const Variant &args) -> Variant {
+    "lipsum", Variant::Function([](const Variant::Array &args) -> Variant {
         Variant::Array vargs ;
-        unpack_args(args, {"n"}, vargs) ;
+        unpack_args(args, 1, 0, vargs) ;
 
         if ( !vargs.empty() ) {
             auto n = vargs[0].toInteger() ;

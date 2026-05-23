@@ -80,7 +80,7 @@ TEST_F(TagTest, ForBlockSequence) {
     }
 };
 
-TEST_F(TagTest, SetBlockSequence) {
+TEST_F(TagTest, SetBlock) {
     TemplateRenderer rdr(nullptr) ;
 
       vector<pair<string, string>> exprs{ 
@@ -88,6 +88,30 @@ TEST_F(TagTest, SetBlockSequence) {
     { R"({% set name = 'Fabien' %}{% set name = 'John' %}{{ name }})", "John" },
     { R"({% set name = 'Fabien' %}{% set name = name|upper %}{{ name }})", "FABIEN" },
     { R"({% set map = {'city': 'Paris'} %}{% set map = map|merge({country: 'France'}) %}{{ map.city }} {{ map.country }})", "Paris France" },
+    { R"({% for item in items %}{% set value = item %}{% endfor %}{{value}})", "" },
+    { R"({% set a, b = 1, 3+4 %}{{ a+b }})", "8" },
+    { R"({% set a%}Hello World {{items[1]}}{% endset %}{{a}})", "Hello World 2" }
+};
+
+    Variant::Object ctx{{"items", Variant::Array{1, 2, 3}}};
+    
+    try {
+        for ( auto &&expr: exprs ) {
+            string output =  rdr.renderString(expr.first, ctx) ;
+            EXPECT_STREQ(output.c_str(), expr.second.c_str()) ;
+        }
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
+
+TEST_F(TagTest, ApplyBlock) {
+    TemplateRenderer rdr(nullptr) ;
+
+      vector<pair<string, string>> exprs{ 
+    { R"({% apply upper %}hello{% endapply %})", "HELLO" },
+     { R"({% apply lower|escape('html') %}<strong>SOME TEXT</strong>{% endapply %})", "&lt;strong&gt;some text&lt;/strong&gt;" },
 };
     
     try {
@@ -95,6 +119,46 @@ TEST_F(TagTest, SetBlockSequence) {
             string output =  rdr.renderString(expr.first, {}) ;
             EXPECT_STREQ(output.c_str(), expr.second.c_str()) ;
         }
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
+
+TEST_F(TagTest, VerbatimBlock) {
+    TemplateRenderer rdr(nullptr) ;
+
+      vector<pair<string, string>> exprs{ 
+    { R"({% verbatim %}<ul>{% for item in seq %}<li>{{ item }}</li>{% endfor %}</ul>{% endverbatim %})", "<ul>{% for item in seq %}<li>{{ item }}</li>{% endfor %}</ul>" },
+    };
+    
+    try {
+        for ( auto &&expr: exprs ) {
+            string output =  rdr.renderString(expr.first, {}) ;
+            EXPECT_STREQ(output.c_str(), expr.second.c_str()) ;
+        }
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
+
+TEST_F(TagTest, ExtendsBlock) {
+
+    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+        {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}{% endblock %}</body><footer>{% block footer %}footer{% endblock %}</footer>)"},
+        {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block head %}{{ parent() }}-Head{% endblock %}{% block content %}<h1>Content</h1>{% endblock %})"},
+        {"base2.html.twig", R"({% for item in seq %}<li>{% block loop_item %}{{ item }}{% endblock %}</li>{% endfor %})"},
+        {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"}
+    })) ;
+    TemplateRenderer rdr(loader) ;
+
+    try {
+            string output = rdr.render("child1.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "<head><title>title</title></head>-Head<body><h1>Content</h1></body><footer>footer</footer>") ;
+            
+            output = rdr.render("child2.html.twig", {{"seq", Variant::Array{"One", "Two", "Three"}}});
+            EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
     
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;
