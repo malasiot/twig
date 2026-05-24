@@ -465,18 +465,13 @@ bool Parser::parseControlTagDeclaration() {
     } else if ( expect("filter") ) {
         string name ;
         arg_list_t args ;
+        
         if ( parseName(name) ) {
             if ( expect('(') ) {
-                NodePtr arg ;
-                while ( parseFunctionArg(arg) ) {
-                    args.emplace_back(arg) ;
-                    if ( expect(',') ) continue ;
-                    else break ;
-                }
+                parseArgumentList(args) ;
                 if ( !expect(')') )
                     throwException("No closing parenthesis") ;
             }
-
         } else throwException("filter name expected") ;
 
         auto n = ContainerNodePtr(new FilterBlockNode(name, std::move(args))) ;
@@ -494,16 +489,14 @@ bool Parser::parseControlTagDeclaration() {
     }  else if ( expect("endextends") ) {
         popControlBlock("extends") ;
     }  else if ( expect("macro") ) {
-
         string name ;
-
         if ( parseName(name) ) {
             if ( expect('(') ) {
-                identifier_list_t ids ;
-                parseNameList(ids);
+                key_val_list_t args ;
+                parseMacroArgList(args) ;
                 if ( !expect(')') )
                     throwException("No closing parenthesis") ;
-                auto n = make_shared<MacroBlockNode>(name, std::move(ids));
+                auto n = make_shared<MacroBlockNode>(name, std::move(args));
                 addNode(n) ;
                 pushControlBlock(n) ;
                 addMacroBlock(name, n) ;
@@ -726,13 +719,8 @@ NodePtr Parser::parsePostfix()
          else if ( expect('(') ) {
 
             arg_list_t args ;
-            NodePtr arg ;
-            while ( parseFunctionArg(arg) ) {
-                args.push_back(arg);
-
-                if ( expect(',') ) continue ;
-                else break ;
-            }
+            parseArgumentList(args) ;
+           
             if ( expect(')') )
                 lhs = NodePtr(new InvokeFunctionNode(lhs, std::move(args))) ;
             else
@@ -745,16 +733,45 @@ NodePtr Parser::parsePostfix()
     return lhs ;
 }
 
+ void Parser::parseMacroArgList(key_val_list_t &args) {
+    while (true) {
+        string name ;
+        if ( !parseName(name) ) 
+            throwException("argument name expected") ;
+        if ( expect('=') ) {
+            auto dval = parseExpression() ;
+            if ( dval ) 
+                args.emplace_back(name, dval) ;
+            else
+                throwException("default value expected for argument") ;
+        } else {
+            if ( !args.empty() && args.back().second != nullptr ) 
+                throwException("required argument after an optional argument") ;
+            else
+                args.emplace_back(name, nullptr) ;    
+        }
+        if ( !expect(',') ) break ;
+    }
+}
+
+bool Parser::parseArgumentList(arg_list_t &args) {
+    FuncArg arg ;
+    while ( parseFunctionArg(arg) ) {
+        if ( arg.name_.empty() && 
+                  ( !args.empty() && !args.back().name_.empty() ) )
+                  throwException("positional argument after named argument") ;
+        args.push_back(arg);
+
+        if ( !expect(',') ) break ;
+    }
+}
+
 bool Parser::parseFilterChain(std::vector<FilterNodePtr> &filters) {
     string name ;
     while ( parseName(name) ) {
         if ( expect('(') ) {
-            NodePtr arg ;
             arg_list_t args ;
-            while ( parseFunctionArg(arg) ) {
-                args.emplace_back(arg) ;
-                if ( !expect(',') ) break ;
-            }
+            parseArgumentList(args) ;
             if ( !expect(')') )
                 throwException("No closing parenthesis") ;
 
@@ -1314,19 +1331,29 @@ NodePtr Parser::parsePrimary() {
     return nullptr ;
 }
 
-bool Parser::parseFunctionArg(NodePtr &val) {
+bool Parser::parseFunctionArg(FuncArg &arg) {
     string key ;
 
     if ( expect("...") ) {
         NodePtr pe = parseExpression() ;
         if ( pe ) {
-            val = NodePtr(new SpreadOperator(pe)) ;
+            arg.value_ = NodePtr(new SpreadOperator(pe)) ;
         } else 
             throwException("identifier needed after spread operator") ;
-    } else 
-        val = parseExpression() ;
+    } else {
+        Position cur = pos_ ;
+        string name ;
+        if ( parseName(name) && expect(":") ) {
+            auto val = parseExpression() ;
+            arg.name_ = name ;
+            arg.value_ = val ;
+        } else {
+            pos_ = cur ;
+            arg.value_ = parseExpression() ;
+        }
+    }
 
-    return val != nullptr ;
+   return arg.value_ != nullptr ;
 }
 
 NodePtr Parser::parseVariable() {

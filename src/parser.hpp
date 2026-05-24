@@ -103,7 +103,7 @@ private:
     NodePtr parseNull() ;
     NodePtr parseFilterExpression();
     bool parseKeyValuePair(std::string &key, NodePtr &val);
-    bool parseFunctionArg(NodePtr &arg);
+    bool parseFunctionArg(FuncArg &arg);
   
     NodePtr parseTernary() ;
     NodePtr parseNullCoalescing();
@@ -121,6 +121,8 @@ private:
     NodePtr parseExponent();
     NodePtr parsePostfix() ;
     bool parseExpressionList(std::vector<NodePtr> &l) ;
+    bool parseArgumentList(arg_list_t &args) ;
+    void parseMacroArgList(key_val_list_t &l) ;
     bool parseFilterChain(std::vector<FilterNodePtr> &filters);
     void consume(const std::string &end_tag, std::string &res);
 

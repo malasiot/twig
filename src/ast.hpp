@@ -33,9 +33,17 @@ public:
     Variant val_;
 };
 
+struct FuncArg {
+    FuncArg() = default ;
+    FuncArg(const std::string &name, NodePtr value):
+        name_(name), value_(value) {}
+    std::string name_ ;
+    NodePtr value_ ;
+};
+
 using key_val_t = std::pair<std::string, NodePtr> ;
 using key_val_list_t = std::vector<key_val_t> ;
-using arg_list_t = std::vector<NodePtr> ;
+using arg_list_t = std::vector<FuncArg> ;
 using identifier_list_t = std::deque<std::string> ;
 using key_alias_t = std::pair<std::string, std::string> ;
 using key_alias_list_t = std::deque<key_alias_t> ;
@@ -573,19 +581,18 @@ public:
 class MacroBlockNode: public ContainerNode {
 public:
 
-    MacroBlockNode(const std::string &name, identifier_list_t &&args): name_(name), args_(args) { }
-    MacroBlockNode(const std::string &name): name_(name) { }
+    MacroBlockNode(const std::string &name, key_val_list_t &&args): name_(name), args_(args) { }
 
     void eval(Context &ctx, std::string &res) const override ;
 
     Variant call(Context &ctx, const Variant &args) ;
 
-    void mapArguments(const Variant &args, Variant::Object &ctx) ;
+    void mapArguments(const Variant &args, Context &ctx) ;
 
     std::string tagName() const override { return "macro" ; }
 
     std::string name_ ;
-    identifier_list_t args_ ;
+    key_val_list_t args_ ;
 };
 
 class ImportBlockNode: public ContainerNode {

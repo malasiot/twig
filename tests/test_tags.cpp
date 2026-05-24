@@ -152,6 +152,7 @@ TEST_F(TagTest, ExtendsBlock) {
         {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"}
     })) ;
     TemplateRenderer rdr(loader) ;
+    rdr.setCaching(false) ;
 
     try {
             string output = rdr.render("child1.html.twig", {});
@@ -160,6 +161,28 @@ TEST_F(TagTest, ExtendsBlock) {
             output = rdr.render("child2.html.twig", {{"seq", Variant::Array{"One", "Two", "Three"}}});
             EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
     
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
+
+TEST_F(TagTest, MacroBlock) {
+
+    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+        {"base1.html.twig", R"({% macro print_list(data, n=1) %}{%for item in data%}<li>{{loop.index0 + n}}-{{item}}</li>{%endfor%}{% endmacro %})"},
+        {"child1.html.twig", R"({% import "base1.html.twig" as util %}{{ util.print_list(['A', 'B'])}})"},
+        {"child2.html.twig", R"({% from "base1.html.twig" import print_list as pl %}{{ pl(['A', 'B'],n:3)}})"},
+   
+    })) ;
+    TemplateRenderer rdr(loader) ;
+    rdr.setCaching(false) ;
+
+    try {
+            string output = rdr.render("child1.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "<li>1-A</li><li>2-B</li>") ;
+            output = rdr.render("child2.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "<li>3-A</li><li>4-B</li>") ;
+          
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;
     }

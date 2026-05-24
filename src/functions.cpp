@@ -22,7 +22,7 @@ extern std::string format(const std::string& fmt, const std::vector<twig::Varian
 
 namespace twig {
 
-Variant FunctionFactory::invokeFunction(const string &name, const Variant::Array &args, Context &ctx) {
+Variant FunctionFactory::invokeFunction(const string &name, const Variant &args, Context &ctx) {
     auto it = functions_.find(name) ;
     if ( it == functions_.end() )
         throw TemplateRuntimeException("Unknown function: " + name) ;
@@ -30,7 +30,7 @@ Variant FunctionFactory::invokeFunction(const string &name, const Variant::Array
     return (it->second)(args, ctx) ;
 }
 
-Variant FunctionFactory::invokeFilter(const string &name, const Variant &target, const Variant::Array &args, Context &ctx)
+Variant FunctionFactory::invokeFilter(const string &name, const Variant &target, const Variant &args, Context &ctx)
 {
     auto it = filters_.find(name) ;
     if ( it == filters_.end() )
@@ -39,7 +39,7 @@ Variant FunctionFactory::invokeFilter(const string &name, const Variant &target,
     return (it->second)(target, args, ctx) ;
 }
 
-Variant FunctionFactory::invokeTest(const string &name, const Variant &target, const Variant::Array &args, Context &ctx)
+Variant FunctionFactory::invokeTest(const string &name, const Variant &target, const Variant &args, Context &ctx)
 {
     auto it = tests_.find(name) ;
     if ( it == tests_.end() )
@@ -60,18 +60,52 @@ void FunctionFactory::registerTest(const string &name, const TestFunction &f) {
     tests_[name] = f ;
 }
 
-void unpack_args(const Variant::Array &args, int required_args, int optional_args,  Variant::Array &res) {
+void unpack_args(const Variant &args, const std::vector<std::string> &named_args, Variant::Array &res) {
 
-    if ( args.size() < required_args ) throw TemplateRuntimeException("wrong number of arguments");
-   
-    res = args ;
-    while ( res.size() < required_args + optional_args )
-        res.push_back(Variant::undefined());
+    uint n_args = named_args.size() ;
+
+    res.resize(n_args, Variant::undefined()) ;
+
+    std::vector<bool> provided(n_args, false) ;
+
+    const Variant &pos_args = args["args"] ;
+
+    for ( uint pos = 0 ; pos < n_args && pos < pos_args.length() ; pos ++ )  {
+        res[pos] = pos_args.at(pos) ;
+        provided[pos] = true ;
+    }
+
+    const Variant &kw_args = args["kw"] ;
+
+    for ( auto it = kw_args.begin() ; it != kw_args.end() ; ++it ) {
+        string key = it.key() ;
+        const Variant &val = it.value() ;
+
+        for( uint k=0 ; k<named_args.size() ; k++ ) {
+            const auto &named_arg = named_args[k] ;
+            string arg_name ;
+            if ( named_arg.back() == '?') arg_name = named_arg.substr(0, named_arg.length() - 1) ;
+            else arg_name = named_arg ;
+
+            if ( key == arg_name && !provided[k] ) {
+                res[k] = val ;
+                provided[k] = true ;
+            }
+        }
+    }
+
+
+    uint required = std::count_if(named_args.begin(), named_args.end(), [](const string &b) { return b.back() != '?' ;});
+
+    if ( std::count(provided.begin(), provided.end(), true) < required ) {
+        throw TemplateRuntimeException("function call missing required arguments") ;
+    }
 }
 
-static Variant _join(const Variant &target, const Variant::Array &args, Context &ctx) {
+
+static Variant _join(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 0, 2, unpacked);
+    unpack_args(args, {"glue?", "and?"}, unpacked);
    
     string sep = ( unpacked[0].isUndefined() ) ? "" : unpacked[0].toString() ;
     string key = ( unpacked[1].isUndefined() ) ? "" : unpacked[1].toString() ;
@@ -89,26 +123,26 @@ static Variant _join(const Variant &target, const Variant::Array &args, Context 
     return res ;
 }
 
-static Variant _lower(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _lower(const Variant &target, const Variant &args, Context &ctx) {
     string str = target.toString() ;
     std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return std::tolower(c); });
     return str ;
 }
 
-static Variant _upper(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _upper(const Variant &target, const Variant &args, Context &ctx) {
     string str = target.toString() ;
     std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c){ return std::toupper(c); });
     return str ;
 }
 
 
-static Variant _default(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _default(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 1, 0, unpacked) ;
+    unpack_args(args, {"default"}, unpacked) ;
     return ( target.isUndefined() || target.isNull() ) ? unpacked[0] : target ;
 }
 
-static Variant _raw(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _raw(const Variant &target, const Variant &args, Context &ctx) {
     if ( target.isString() )
         return Variant(target.toString(), true) ; // make it safe
     else
@@ -175,22 +209,21 @@ Variant escape(const Variant &src, const string &escape_mode)
     else return src ;
 }
 
-static Variant _escape(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _escape(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 0, 1, unpacked) ;
+    unpack_args(args, {"strategy?", "charset?"}, unpacked) ;
 
     string mode = unpacked[0].isUndefined() ? "html" : unpacked[0].toString() ;
-
     return escape(target, mode) ;
 }
 
-static Variant _defined(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _defined(const Variant &target, const Variant &args, Context &ctx) {
     return !(target.isUndefined() ) ;
 }
 
-static Variant range(const Variant::Array &args, Context &ctx) {
+static Variant range(const Variant &args, Context &ctx) {
     Variant::Array unpacked, result ;
-    unpack_args(args, 2, 1, unpacked) ;
+    unpack_args(args, {"low", "high", "step?"}, unpacked) ;
 
     if ( unpacked[0].type() == Variant::Type::Integer ) {
         int64_t start = unpacked[0].toInteger() ;
@@ -208,11 +241,11 @@ static Variant range(const Variant::Array &args, Context &ctx) {
     return result ;
 }
 
-static Variant _length(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _length(const Variant &target, const Variant &args, Context &ctx) {
     return Variant(static_cast<int64_t>(target.length())) ;
 }
 
-static Variant _last(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _last(const Variant &target, const Variant &args, Context &ctx) {
     
     if ( target.isArray() )
         return target.at(target.length() - 1) ;
@@ -225,7 +258,7 @@ static Variant _last(const Variant &target, const Variant::Array &args, Context 
     else return Variant::null() ;
 }
 
-static Variant _first(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _first(const Variant &target, const Variant &args, Context &ctx) {
     if ( target.isArray() )
         return target.at(0) ;
     else if ( target.isString() ) {
@@ -237,7 +270,7 @@ static Variant _first(const Variant &target, const Variant::Array &args, Context
     else return Variant::null() ;
 }
 
-static Variant _abs(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _abs(const Variant &target, const Variant &args, Context &ctx) {
     try {
         Variant num = target.toNumber() ;
         if ( num.type() == Variant::Type::Integer )
@@ -253,7 +286,7 @@ static Variant _abs(const Variant &target, const Variant::Array &args, Context &
     }
 }
 
-static Variant _capitalize(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _capitalize(const Variant &target, const Variant &args, Context &ctx) {
     string val = target.toString() ;
     if ( val.empty() )
         return val ;
@@ -275,9 +308,9 @@ static Variant _capitalize(const Variant &target, const Variant::Array &args, Co
     return output;
 }
 
-static Variant _filter(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _filter(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 1, 0, unpacked) ;
+    unpack_args(args, {"arrow"}, unpacked) ;
 
     Variant data = target ;
     Variant lambda = unpacked[0] ;
@@ -304,7 +337,7 @@ static Variant _filter(const Variant &target, const Variant::Array &args, Contex
        
 }
 
-static Variant _keys(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _keys(const Variant &target, const Variant &args, Context &ctx) {
     if ( target.isObject() ) {
         Variant::Array res ;
         for( auto it = target.begin() ; it != target.end() ; ++it )
@@ -314,9 +347,9 @@ static Variant _keys(const Variant &target, const Variant::Array &args, Context 
     else return Variant::null() ;
 }
 
-static Variant _batch(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _batch(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked, out ;
-    unpack_args(args, 2, 1, unpacked) ;
+    unpack_args(args, {"size", "fill", "preserve_keys?"}, unpacked) ;
 
     if ( !target.isArray() )
         throw TemplateRuntimeException("batch filter expects an array") ;
@@ -345,9 +378,9 @@ static Variant _batch(const Variant &target, const Variant::Array &args, Context
     return out ;
 }
 
-static Variant _merge(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _merge(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 1, 0, unpacked) ;
+    unpack_args(args, {"other"}, unpacked) ;
 
     if ( target.isArray() ) {
         Variant::Array res ;
@@ -374,9 +407,9 @@ static Variant _merge(const Variant &target, const Variant::Array &args, Context
     else return target ;
 }
 
-static Variant cycle(const Variant::Array &args, Context &ctx) {
+static Variant cycle(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 1, 1, unpacked) ;
+    unpack_args(args, {"values", "position?"}, unpacked) ;
     if ( !unpacked[0].isArray() )
         throw TemplateRuntimeException("cycle function expects an array as first argument") ;
 
@@ -384,14 +417,14 @@ static Variant cycle(const Variant::Array &args, Context &ctx) {
     return unpacked[0].at(position % unpacked[0].length()) ;
 }
 
-static Variant _format(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _format(const Variant &target, const Variant &args, Context &ctx) {
     string fmt = target.toString() ;
-    return ::format(fmt, args);
+    return ::format(fmt, args["args"].toArray());
 }
 
-static Variant _date(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _date(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 0, 2, unpacked) ;
+    unpack_args(args, {"format?", "timezone?"}, unpacked) ;
 
     Variant src = target ;
     string tz = unpacked[1].isUndefined() ? string() : unpacked[1].toString() ;
@@ -449,9 +482,9 @@ static Variant _date(const Variant &target, const Variant::Array &args, Context 
 
 }
 
-static Variant date(const Variant::Array &args, Context &ctx) {
+static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 0, 2, unpacked) ;
+    unpack_args(args, {"date?", "timezone?"}, unpacked) ;
 
     auto t = unpacked[0] ;
     string tz = unpacked[1].isUndefined() ? string() : unpacked[1].toString() ;
@@ -477,12 +510,13 @@ static Variant date(const Variant::Array &args, Context &ctx) {
         throw TemplateRuntimeException("date function expects a string, integer timestamp, DateTime or Duration as first argument") ;
 }
 
-static Variant _trim(const Variant &target, const Variant::Array &args, Context &ctx) {
+static Variant _trim(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 0, 1, unpacked) ;
+    unpack_args(args, {"character_mask?", "side?"}, unpacked) ;
 
     string str = target.toString() ;
     string chars = unpacked[0].isUndefined() ? " \t\n\r\f\v" : unpacked[0].toString() ;
+    string side = unpacked[1].isUndefined() ? "both" : unpacked[1].toString() ;
 
     size_t start = str.find_first_not_of(chars) ;
     if ( start == string::npos ) return "" ;
@@ -491,44 +525,44 @@ static Variant _trim(const Variant &target, const Variant::Array &args, Context 
     return str.substr(start, end - start + 1) ;
 }
 
-static bool _even(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _even(const Variant &target, const Variant &args, Context &ctx) {
     return target.toInteger() % 2 == 0 ;
 }
 
-static bool _divisible_by(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _divisible_by(const Variant &target, const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
-    unpack_args(args, 1, 0, unpacked) ;
+    unpack_args(args, {"divisor"}, unpacked) ;
     return target.toInteger() % unpacked[0].toInteger() == 0 ;
 }
 
-static bool _odd(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _odd(const Variant &target, const Variant &args, Context &ctx) {
     return target.toInteger() % 2 != 0 ;
 }
 
-static bool _is_defined(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _is_defined(const Variant &target, const Variant &args, Context &ctx) {
     return !target.isUndefined() ;
 }
 
-static bool _empty(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _empty(const Variant &target, const Variant &args, Context &ctx) {
     return target.isUndefined() || target.isNull() || ( target.isString() && target.toString().empty() ) ||
            ( target.isArray() && target.length() == 0 ) ||
            ( target.isObject() && target.length() == 0 ) ;
 }
 
-static bool _iterable(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _iterable(const Variant &target, const Variant &args, Context &ctx) {
     return target.isArray() ||
            target.isObject()  ;
 }
 
-static bool _null(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _null(const Variant &target, const Variant &args, Context &ctx) {
     return target.isNull() ;
 }
 
-static bool _sequence(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _sequence(const Variant &target, const Variant &args, Context &ctx) {
     return target.isArray()  ;
 }
 
-static bool _map(const Variant &target, const Variant::Array &args, Context &ctx) {
+static bool _map(const Variant &target, const Variant &args, Context &ctx) {
     return target.isObject()  ;
 }
 

@@ -312,36 +312,51 @@ Variant AttributeIndexingNode::eval(Context &ctx) {
 }
 
 
-static void evalArgs(const arg_list_t &input_args, Variant::Array &args, Context &ctx)
+static void evalArgs(const arg_list_t &input_args, Variant &packed_args, Context &ctx)
 {
-    for ( auto &&e: input_args ) {
-        if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.get()) ) {
-            Variant s = so->eval(ctx) ;
+    Variant::Array positional ;
+    Variant::Object kw ;
 
-            if ( s.isArray() ) {
-                for( auto &se: s ) {
-                    args.push_back(se) ;
+    for ( auto &&e: input_args ) {
+        if ( e.name_.empty() ) {
+            if ( SpreadOperator *so = dynamic_cast<SpreadOperator *>(e.value_.get()) ) {
+                Variant s = so->eval(ctx) ;
+
+                if ( s.isArray() ) {
+                    for( auto &se: s ) {
+                        positional.push_back(se) ;
+                    }
                 }
+                else if ( !s.isUndefined() && !s.isNull() ) {
+                    throw TemplateRuntimeException("spread operator needs array variable");
+                }  
             }
-            else if ( !s.isUndefined() && !s.isNull() ) {
-                throw TemplateRuntimeException("spread operator needs array variable");
-            }  
+            else {
+                auto v = e.value_->eval(ctx) ;
+                positional.push_back(v) ;
+            }
+        } else {
+            kw.emplace(e.name_, e.value_->eval(ctx));
         }
-        else
-            args.push_back(e->eval(ctx)) ;
     }
+
+    Variant::Object packed ;
+
+    packed.emplace("args", positional);
+    packed.emplace("kw", kw) ;
+
+    packed_args = packed ;
 }
 
 static Variant evalFilter(const string &name, const arg_list_t &args, const Variant &target, Context &ctx) {
-
-    Variant::Array evargs ;
+    Variant evargs ;
     evalArgs(args, evargs, ctx) ;
     return FunctionFactory::instance().invokeFilter(name, target, evargs, ctx) ;
 }
 
 static Variant evalTest(const string &name, const arg_list_t &args, const Variant &target, Context &ctx) {
 
-    Variant::Array evargs ;
+    Variant evargs ;
     evalArgs(args, evargs, ctx) ;
     return FunctionFactory::instance().invokeTest(name, target, evargs, ctx) ;
 }
@@ -365,7 +380,7 @@ Variant TestExpressionNode::eval(Context &ctx)
     Variant target = lhs_->eval(ctx) ;
     arg_list_t args ;
     if ( args_ ) {
-        args.push_back(args_) ;
+        args.emplace_back(std::string(), args_) ;
     } 
     return evalTest(name_, args, target, ctx) ;
 }
@@ -529,7 +544,7 @@ void FilterBlockNode::eval(Context &ctx, string &res) const
 
 Variant InvokeFunctionNode::eval(Context &ctx)
 {
-    Variant::Array args ;
+    Variant args ;
     evalArgs(args_, args, ctx) ;
 
     if (IdentifierNode *node = dynamic_cast<IdentifierNode *>(callable_.get()) ) {
@@ -610,23 +625,65 @@ void ExtensionBlockNode::eval(Context &ctx, string &res) const
 
 
 
-void MacroBlockNode::eval(Context &, string &) const
+void MacroBlockNode::eval(Context &ctx, string &str) const
 {
 
 }
 
-// map passed arguments to context variables with the same name as macro parameters
-void MacroBlockNode::mapArguments(const Variant &args, Variant::Object &ctx)
+/*
+void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
 {
+    uint n_args = args.length() ;
+
+    for ( uint pos = 0 ; pos < args_.size() ; pos ++ )  {
+        const string &arg_name = args_[pos].first ;
+        NodePtr dval = args_[pos].second ;
+        Variant v ;
+        if ( pos < n_args ) 
+             v = args.at(pos) ;
+        else if ( dval ) {
+            v = dval->eval(ctx);
+        }
+        ctx.data()[arg_name] = std::move(v) ;
+    }
+    // store arguments in context
+    ctx.data()["varargs"] = args ;
+}
+*/
+void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
+{
+    Variant pos_args = args["args"];
+    Variant kw_args = args["kw"];
+
+    uint n_positional_args = pos_args.length() ;
+
+    for ( uint pos = 0 ; pos < args_.size() ; pos ++ )  {
+        const string &arg_name = args_[pos].first ;
+        NodePtr dval = args_[pos].second ;
+        Variant kwv = kw_args.at(arg_name);
+        Variant v ;
+        if ( pos < n_positional_args ) 
+             v = pos_args.at(pos) ;
+        else if ( !kwv.isUndefined() ) {
+            v = kwv ;
+        }
+        else if ( dval ) {
+            v = dval->eval(ctx);
+        } else {
+            throw TemplateRuntimeException("missing require parameter:" + arg_name);
+        }
+        ctx.data()[arg_name] = std::move(v) ;
+    }
+    /*
     uint n_args = args_.size() ;
 
     const Variant &pos_args = args["args"] ;
 
     for ( uint pos = 0 ; pos < n_args && pos < pos_args.length() ; pos ++ )  {
-        const string &arg_name = args_[pos] ;
+        const string &arg_name = args_[pos].first ;
 
         Variant v = pos_args.at(pos) ;
-        ctx[arg_name] = std::move(v) ;
+        ctx.data()[arg_name] = std::move(v) ;
     }
 
     const Variant &kw_args = args["kw"] ;
@@ -636,23 +693,23 @@ void MacroBlockNode::mapArguments(const Variant &args, Variant::Object &ctx)
         const Variant &val = it.value() ;
 
         for( uint k=0 ; k<n_args ; k++ ) {
-            const string &arg_name = args_[k] ;
+            const string &arg_name = args_[k].first ;
 
             if ( key == arg_name )
-                ctx[arg_name] = val ;
+                ctx.data()[arg_name] = val ;
         }
     }
 
     // store arguments in context
-    ctx["_args_"] = pos_args ;
-    ctx["_kw_"] = kw_args ;
+    ctx.data()["_args_"] = pos_args ;
+    ctx.data()["_kw_"] = kw_args ;*/
 }
 
 Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
 
     Context mctx(ctx.rdr_, {}) ;
 
-    mapArguments(args, mctx.data()) ;
+    mapArguments(args, mctx) ;
 
     string out ;
 

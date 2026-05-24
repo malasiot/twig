@@ -10,15 +10,11 @@
 namespace twig {
 
 
-using TemplateFunction = std::function<Variant(const Variant::Array &, Context &ctx)>;
-using TestFunction = std::function<bool(const Variant &, const Variant::Array &, Context &ctx)>;
-using FilterFunction = std::function<Variant(const Variant &, const Variant::Array &, Context &ctx)>;
+using TemplateFunction = std::function<Variant(const Variant &, Context &ctx)>;
+using TestFunction = std::function<bool(const Variant &, const Variant &, Context &ctx)>;
+using FilterFunction = std::function<Variant(const Variant &, const Variant &, Context &ctx)>;
 
-// Unpack positional and named arguments passed to the function to the list of expected arguments
-// The named_args is a list of arguments names. If ending with '?' argument is optional. Non supplied arguments are given undefined value.
-// Throws TemplateRuntimeException if not all required arguments are provided
-
-void unpack_args(const Variant::Array &args, int req, int opt, Variant::Array &res) ;
+void unpack_args(const Variant &args, const std::vector<std::string> &spec, Variant::Array &res) ;
 
 class FunctionFactory {
 public:
@@ -34,9 +30,9 @@ public:
     bool hasFilter(const std::string &name) ;
     bool hasTest(const std::string &name) ;
 
-    Variant invokeFunction(const std::string &name, const Variant::Array &args, Context &ctx) ;
-    Variant invokeFilter(const std::string &name, const Variant &target, const Variant::Array &args, Context &ctx) ;
-    Variant invokeTest(const std::string &name, const Variant &target, const Variant::Array &args, Context &ctx) ;
+    Variant invokeFunction(const std::string &name, const Variant &args, Context &ctx) ;
+    Variant invokeFilter(const std::string &name, const Variant &target, const Variant &args, Context &ctx) ;
+    Variant invokeTest(const std::string &name, const Variant &target, const Variant &args, Context &ctx) ;
 
     void registerFunction(const std::string &name, const TemplateFunction &f);
     void registerFilter(const std::string &name, const FilterFunction &f);
