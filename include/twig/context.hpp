@@ -8,6 +8,7 @@
 namespace twig {
 namespace detail {
 class NamedBlockNode ;
+class ContainerNode ;
 typedef std::shared_ptr<NamedBlockNode> NamedBlockNodePtr ;
 
 class DocumentNode ;
@@ -47,6 +48,5 @@ public:
     TemplateRenderer &rdr_ ;
     std::string escape_mode_ = "no";
 };
-
 } // twig
 #endif

@@ -595,7 +595,6 @@ bool Parser::parseControlTagDeclaration() {
             pushControlBlock(n) ;
             consumed = true ;
         }
-
     } 
     else if ( expect("endapply") ) {
         popControlBlock("apply") ;
@@ -623,7 +622,6 @@ bool Parser::parseControlTagDeclaration() {
     }
 
     return consumed ;
-
 }
 
 void Parser::parseSubstitutionTag() {

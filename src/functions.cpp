@@ -246,7 +246,6 @@ static Variant _length(const Variant &target, const Variant &args, Context &ctx)
 }
 
 static Variant _last(const Variant &target, const Variant &args, Context &ctx) {
-    
     if ( target.isArray() )
         return target.at(target.length() - 1) ;
     else if ( target.isString() ) {
@@ -256,6 +255,33 @@ static Variant _last(const Variant &target, const Variant &args, Context &ctx) {
         return result ;
     }
     else return Variant::null() ;
+}
+
+static Variant _find(const Variant &target, const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"arrow"}, unpacked) ;   
+
+    Variant lambda = unpacked[0] ;
+    if ( lambda.type() != Variant::Type::Function )
+        throw TemplateRuntimeException("find filter expects a lambda as an argument") ;
+    if ( target.isArray() ) {
+        Variant::Array res ;
+        for( auto &e: target ) {
+            Variant::Array lambda_args { e } ;
+            if ( lambda.invoke(lambda_args).toBoolean() )
+                return e ;
+        }
+        return Variant::undefined() ;
+    } else if ( target.isObject() ) {
+        Variant::Object res ;
+        for( auto it = target.begin() ; it != target.end() ; ++it ) {
+            Variant::Array kv { it.key(), it.value() } ;
+            if ( lambda.invoke(kv).toBoolean() )
+                return it.value() ;
+        }
+        return Variant::undefined() ;
+    } else
+        return Variant::undefined() ;
 }
 
 static Variant _first(const Variant &target, const Variant &args, Context &ctx) {
@@ -482,6 +508,23 @@ static Variant _date(const Variant &target, const Variant &args, Context &ctx) {
 
 }
 
+static Variant include(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"template", "variables?", "with_context?", "ignore_missing?", "sandboxed?"}, unpacked) ;
+
+    Variant::Object variables ;
+    if ( !unpacked[1].isUndefined() ) 
+        variables = unpacked[1].toObject() ;
+
+    bool ignore_missing = unpacked[3].isUndefined() ? false : unpacked[3].toBoolean() ;
+    bool with_context = unpacked[2].isUndefined() ? true : unpacked[2].toBoolean() ;
+
+    if ( with_context )
+        variables.insert(ctx.data_.begin(), ctx.data_.end());
+
+    return ctx.rdr_.render(unpacked[0].toString(), variables, ignore_missing) ;
+}
+
 static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"date?", "timezone?"}, unpacked) ;
@@ -523,6 +566,160 @@ static Variant _trim(const Variant &target, const Variant &args, Context &ctx) {
     size_t end = str.find_last_not_of(chars) ;
 
     return str.substr(start, end - start + 1) ;
+}
+
+static Variant _map_filter(const Variant &target, const Variant &args, Context &ctx) {
+   Variant::Array unpacked ;
+    unpack_args(args, {"arrow"}, unpacked) ;
+
+    Variant data = target ;
+    Variant lambda = unpacked[0] ;
+    if ( lambda.type() != Variant::Type::Function )
+        throw TemplateRuntimeException("filter function expects a lambda as second argument") ;
+    if ( data.isArray() ) {
+        Variant::Array res ;
+        for( auto &e: data ) {
+            Variant::Array lambda_args { e } ;
+            Variant r = lambda.invoke(lambda_args) ;
+            res.push_back(r) ;
+        }
+        return res ;
+    } else if ( data.isObject() ) {
+        Variant::Object res ;
+        for( auto it = data.begin() ; it != data.end() ; ++it ) {
+            Variant::Array kv { it.key(), it.value() } ;
+            Variant r = lambda.invoke(kv) ;
+            res.emplace(it.key(), r) ;
+        }
+        return res ;
+    } else
+        return data ;
+}
+
+static Variant _reduce(const Variant &target, const Variant &args, Context &ctx) {
+   Variant::Array unpacked ;
+    unpack_args(args, {"arrow", "initial?"}, unpacked) ;
+
+    Variant data = target ;
+    Variant lambda = unpacked[0] ;
+    double initial = unpacked[1].isUndefined() ? 0 : unpacked[1].toFloat() ;
+
+    if ( lambda.type() != Variant::Type::Function )
+        throw TemplateRuntimeException("reduce function expects a lambda as an argument") ;
+    
+    double result = initial ;
+    if ( data.isArray() ) {
+        Variant::Array res ;
+        for( size_t i=0 ; i<data.length() ; i++ ) {
+            Variant::Array lambda_args { result, i, data.at(i) } ;
+            result = lambda.invoke(lambda_args).toFloat() ;
+        }
+        return result ;
+    } else if ( data.isObject() ) {
+        Variant::Object res ;
+        for( auto it = data.begin() ; it != data.end() ; ++it ) {
+            Variant::Array kv { result, it.key(), it.value() } ;
+            result = lambda.invoke(kv).toFloat() ;
+        }
+        return result ;
+    } else
+        return 0 ;
+}
+
+static Variant _json_encode(const Variant &target, const Variant &args, Context &ctx) {
+    return target.toJSON() ;
+}
+
+static Variant _round(const Variant &target, const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"precision?", "method?"}, unpacked) ;
+
+    int precision = unpacked[0].isUndefined() ? 0 : unpacked[0].toInteger() ;
+    string method = unpacked[1].isUndefined() ? "common" : unpacked[1].toString() ;
+
+    double v = target.toFloat() ;
+    double scale = std::pow(10.0, precision);
+    if ( method == "ceil" ) return std::ceil(v * scale)/scale ;
+    else if ( method == "floor" ) return std::floor(v * scale)/scale ;
+    else return std::round(v * scale) / scale;
+}
+
+static Variant _slice(const Variant &target, const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"start?", "length?", "preserve_keys?"}, unpacked) ;
+
+    int start = unpacked[0].isUndefined() ? 0 : unpacked[0].toInteger() ;
+    bool has_length = !unpacked[1].isUndefined();
+    int length = has_length ? unpacked[1].toInteger() : 0 ;
+    bool preserve_keys = unpacked[2].isUndefined() ? false : unpacked[2].toBoolean() ;
+
+    // Work with the correct size depending on the type
+    int total = static_cast<int>(target.length());
+
+    // Normalize start (support negative)
+    if ( start < 0 ) start = total + start;
+    if ( start < 0 ) start = 0;
+    if ( start > total ) start = total;
+
+    // If length was not provided, default to remaining elements
+    if ( !has_length ) {
+        length = total - start;
+    }
+
+    // Normalize length (support negative)
+    if ( length < 0 ) {
+        length = (total - start) + length;
+    }
+    if ( length < 0 ) length = 0;
+    if ( start + length > total ) length = total - start;
+
+    if ( target.isArray() ) {
+        Variant::Array out ;
+        Variant::Object outobj ;
+
+        if ( length <= 0 ) {
+            return preserve_keys ? Variant(outobj) : Variant(out) ;
+        }
+
+        for ( int i = 0 ; i < length ; i++ ) {
+            int idx = start + i ;
+            const Variant &v = target.at(static_cast<uint>(idx)) ;
+            if ( preserve_keys )
+                outobj[std::to_string(idx)] = v ;
+            else
+                out.push_back(v) ;
+        }
+
+        return preserve_keys ? Variant(outobj) : Variant(out) ;
+    }
+    else if ( target.isObject() ) {
+        Variant::Object outobj ;
+        Variant::Array out ;
+
+        std::vector<std::string> keys = target.keys() ;
+        // adjust bounds for keys
+        if ( start > static_cast<int>(keys.size()) ) start = static_cast<int>(keys.size()) ;
+        if ( start + length > static_cast<int>(keys.size()) ) length = static_cast<int>(keys.size()) - start ;
+
+        if ( length <= 0 ) return preserve_keys ? Variant(outobj) : Variant(out) ;
+
+        for ( int i = 0 ; i < length ; i++ ) {
+            const std::string &k = keys[start + i] ;
+            const Variant &v = target[k] ;
+            if ( preserve_keys ) outobj[k] = v ;
+            else out.push_back(v) ;
+        }
+
+        return preserve_keys ? Variant(outobj) : Variant(out) ;
+    }
+    else if ( target.isString() ) {
+        std::string s = target.toString() ;
+        if ( start >= static_cast<int>(s.size()) || length <= 0 ) return string() ;
+        return s.substr(static_cast<size_t>(start), static_cast<size_t>(length)) ;
+    }
+
+    return target ;
+
 }
 
 static bool _even(const Variant &target, const Variant &args, Context &ctx) {
@@ -588,10 +785,17 @@ FunctionFactory::FunctionFactory() {
     registerFilter("trim", _trim) ;
     registerFilter("keys", _keys) ;
     registerFilter("format", _format) ;
+    registerFilter("json_encode", _json_encode) ;
+    registerFilter("find", _find) ;
+    registerFilter("map", _map_filter) ;
+    registerFilter("reduce", _reduce) ;
+    registerFilter("round", _round) ;
+    registerFilter("slice", _slice) ;
 
     registerFunction("range", range);
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
+    registerFunction("include",  include) ;
 
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;

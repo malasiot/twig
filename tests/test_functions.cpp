@@ -107,3 +107,103 @@ TEST_F(FunctionTest, Filter) {
     }
    
 }
+
+TEST_F(FunctionTest, Find) {
+  TemplateRenderer rdr(nullptr) ;
+
+  const string tmpl1  =  R"({{ [5, 10, 15, 20] | find(item => item > 10)  }})";
+  const string tmpl2  =  R"({% set sizes = {
+    xxs: 32,
+    xs:  34,
+    s:   36,
+    m:   38,
+    l:   40,
+    xl:  42,
+} %}{{ sizes|find((k, v) => 's' not in k) }})";
+
+
+    try {
+        string output =  rdr.renderString(tmpl1, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "15") ;
+        output =  rdr.renderString(tmpl2, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "40") ;
+      
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+   
+}
+
+TEST_F(FunctionTest, Map) {
+  TemplateRenderer rdr(nullptr) ;
+
+  const string tmpl1  =  R"({% set people = [
+    {first: "Bob", last: "Smith"},
+    {first: "Alice", last: "Dupond"},
+] %}{{ people|map(p => [ p.first, p.last ] | join(' ') )|join(', ') }})";
+  
+const string tmpl2  =  R"({% set people = {
+    "Bob": "Smith",
+    "Alice": "Dupond",
+} %}{{ people|map((key, value) => [ key, value ] | join(' '))|join(', ') }})";
+
+    try {
+        string output =  rdr.renderString(tmpl1, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "Bob Smith, Alice Dupond") ;
+        output =  rdr.renderString(tmpl2, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "Alice Dupond, Bob Smith") ;
+      
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+   
+}
+
+TEST_F(FunctionTest, Reduce) {
+    TemplateRenderer rdr(nullptr) ;
+
+    const string tmpl1  =  R"({% set numbers = [1, 2, 3] %}{{ numbers|reduce((carry, key, value) => carry + value * key) }})";
+  
+    try {
+        string output =  rdr.renderString(tmpl1, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "8") ;
+      
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }  
+}
+
+TEST_F(FunctionTest, Round) {
+    TemplateRenderer rdr(nullptr) ;
+
+    const string tmpl1  =  R"({{23.45|round}} {{23.45|round(1)}} {{23.45|round(1, "floor")}})";
+  
+    try {
+        string output =  rdr.renderString(tmpl1, Variant::Object()) ;
+        EXPECT_STREQ(output.c_str(), "23 23.5 23.4") ;
+      
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+}
+
+TEST_F(FunctionTest, Slice) {
+    TemplateRenderer rdr(nullptr) ;
+
+    std::vector<std::pair<std::string, std::string>> tmpl {
+        { R"({{ [1, 2, 3, 4] | slice(1,2) | join(', ') }})", "2, 3" },
+        { R"({{ [1, 2, 3, 4] | slice(2) | join(', ') }})", "3, 4" },
+        { R"({{ "1234" | slice(2, -1)  }})", "3" },
+        { R"({{ [1, 2, 3, 4] | slice(-1) | join(', ') }})", "4" },
+        { R"({% for key, value in [1, 2, 3, 4, 5]|slice(1, 2, true) %}{{ key }}{{ value }}{% endfor %})", "1223" }
+    };
+  
+    try {
+        for( const auto &t: tmpl) {
+            string output =  rdr.renderString(t.first, Variant::Object()) ;
+            EXPECT_STREQ(output.c_str(), t.second.c_str()) ;
+        }
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+}

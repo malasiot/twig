@@ -4,6 +4,8 @@
 #include <twig/exceptions.hpp>
 #include <twig/renderer.hpp>
 
+#include <cmath>
+
 using namespace std ;
 
 namespace twig {
@@ -576,9 +578,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
 }
 
 
-void NamedBlockNode::eval(Context &ctx, string &res) const
-{
-
+void NamedBlockNode::eval(Context &ctx, string &res) const {
     auto it = ctx.blocks_.find(name_) ;
     if ( it != ctx.blocks_.end() ) {
         Context cctx(ctx) ;
@@ -630,26 +630,6 @@ void MacroBlockNode::eval(Context &ctx, string &str) const
 
 }
 
-/*
-void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
-{
-    uint n_args = args.length() ;
-
-    for ( uint pos = 0 ; pos < args_.size() ; pos ++ )  {
-        const string &arg_name = args_[pos].first ;
-        NodePtr dval = args_[pos].second ;
-        Variant v ;
-        if ( pos < n_args ) 
-             v = args.at(pos) ;
-        else if ( dval ) {
-            v = dval->eval(ctx);
-        }
-        ctx.data()[arg_name] = std::move(v) ;
-    }
-    // store arguments in context
-    ctx.data()["varargs"] = args ;
-}
-*/
 void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
 {
     Variant pos_args = args["args"];
@@ -932,7 +912,7 @@ Variant LambdaNode::eval(Context &ctx) {
             cctx.data()[args_[i]] = pos_args.at(i) ;
         }
         Variant res = body_->eval(cctx);
-        return res.toBoolean() ;
+        return res ;
     });
 }
 

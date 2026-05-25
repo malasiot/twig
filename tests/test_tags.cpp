@@ -152,8 +152,7 @@ TEST_F(TagTest, ExtendsBlock) {
         {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"}
     })) ;
     TemplateRenderer rdr(loader) ;
-    rdr.setCaching(false) ;
-
+   
     try {
             string output = rdr.render("child1.html.twig", {});
             EXPECT_STREQ(output.c_str(), "<head><title>title</title></head>-Head<body><h1>Content</h1></body><footer>footer</footer>") ;
@@ -175,13 +174,37 @@ TEST_F(TagTest, MacroBlock) {
    
     })) ;
     TemplateRenderer rdr(loader) ;
-    rdr.setCaching(false) ;
-
+  
     try {
             string output = rdr.render("child1.html.twig", {});
             EXPECT_STREQ(output.c_str(), "<li>1-A</li><li>2-B</li>") ;
             output = rdr.render("child2.html.twig", {});
             EXPECT_STREQ(output.c_str(), "<li>3-A</li><li>4-B</li>") ;
+          
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
+
+TEST_F(TagTest, IncludeBlock) {
+    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+        {"base.html.twig", R"({{name}})"},
+        {"child1.html.twig", R"(Hello {% include 'base.html.twig' with {'name': 'Fabien'} %})"},
+        {"child2.html.twig", R"(Hello {% include 'base.html.twig' only %})"},
+        {"child3.html.twig", R"({%set name='Fabien'%}{{include("base.html.twig", ignore_missing:true)}})"},
+    })) ;
+    TemplateRenderer rdr(loader) ;
+
+    try {
+            string output = rdr.render("child1.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "Hello Fabien") ;
+
+            output = rdr.render("child2.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "Hello ") ;
+
+            output = rdr.render("child3.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "Fabien") ;
+
           
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;

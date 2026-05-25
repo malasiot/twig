@@ -5,7 +5,7 @@
 using namespace std ;
 namespace twig {
 
-string TemplateRenderer::render(const string &resource, const Variant::Object &ctx)
+string TemplateRenderer::render(const string &resource, const Variant::Object &ctx, bool ignore_missing)
 {
     try {
         auto ast = compile(resource) ;
@@ -18,6 +18,9 @@ string TemplateRenderer::render(const string &resource, const Variant::Object &c
     } catch ( detail::ParseException &e ) {
         throw TemplateCompileException(string("Error compiling template \"") + resource + "\": " + e.what()) ;
         return string() ;
+    } catch ( TemplateLoadException &e ) {
+        if ( ignore_missing ) return std::string() ;
+        else throw e ;
     }
 }
 
@@ -36,12 +39,9 @@ string TemplateRenderer::renderString(const string &str, const Variant::Object &
 
 detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
 {
-    static Cache g_cache ;
-
     if ( resource.empty() ) return nullptr ;
-
-    if ( caching_ ) {
-        auto stored = g_cache.fetch(resource) ;
+    if ( cache_ ) {
+        auto stored = cache_->fetch(resource) ;
         if ( stored ) return stored ;
     }
 
@@ -59,7 +59,7 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
         throw TemplateCompileException(s.str()) ;
     }
 
-    if ( caching_ ) g_cache.add(resource, root) ;
+    if ( cache_ ) cache_->add(resource, root) ;
 
     return root ;
 }
