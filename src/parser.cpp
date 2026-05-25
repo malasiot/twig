@@ -719,7 +719,7 @@ NodePtr Parser::parsePostfix()
             arg_list_t args ;
             parseArgumentList(args) ;
            
-            if ( expect(')') )
+            if ( expect(')') ) 
                 lhs = NodePtr(new InvokeFunctionNode(lhs, std::move(args))) ;
             else
                 throwException("missing closing ')'");

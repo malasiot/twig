@@ -149,7 +149,11 @@ TEST_F(TagTest, ExtendsBlock) {
         {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}{% endblock %}</body><footer>{% block footer %}footer{% endblock %}</footer>)"},
         {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block head %}{{ parent() }}-Head{% endblock %}{% block content %}<h1>Content</h1>{% endblock %})"},
         {"base2.html.twig", R"({% for item in seq %}<li>{% block loop_item %}{{ item }}{% endblock %}</li>{% endfor %})"},
-        {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"}
+        {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"},
+        {"base3.html.twig", R"({% block title%}Title{%endblock%}{% block content %}{% endblock %})"},
+        {"child3.html.twig", R"({% extends "base3.html.twig" %}{% block title %}title-{{ parent() }}{% endblock %})"}
+    
+    
     })) ;
     TemplateRenderer rdr(loader) ;
    
@@ -158,6 +162,9 @@ TEST_F(TagTest, ExtendsBlock) {
             EXPECT_STREQ(output.c_str(), "<head><title>title</title></head>-Head<body><h1>Content</h1></body><footer>footer</footer>") ;
             
             output = rdr.render("child2.html.twig", {{"seq", Variant::Array{"One", "Two", "Three"}}});
+            EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
+
+            output = rdr.render("child3.html.twig", {});
             EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
     
     } catch ( TemplateCompileException &e ) {

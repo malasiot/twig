@@ -2,6 +2,7 @@
 #include <twig/date_helpers.hpp>
 #include <twig/exceptions.hpp>
 #include <twig/renderer.hpp>
+#include "ast.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -525,6 +526,22 @@ static Variant include(const Variant &args, Context &ctx) {
     return ctx.rdr_.render(unpacked[0].toString(), variables, ignore_missing) ;
 }
 
+static Variant block(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"name", "template?"}, unpacked) ;
+
+    string name = unpacked[0].toString() ;
+    auto it = ctx.blocks_.find(name) ;
+
+     if ( it != ctx.blocks_.end() ) {
+        detail::NamedBlockNodePtr e = it->second ;
+        string res ;
+        e->eval(ctx, res) ;
+        return res ;
+    } else 
+        return Variant::undefined() ;
+}
+
 static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"date?", "timezone?"}, unpacked) ;
@@ -611,7 +628,7 @@ static Variant _reduce(const Variant &target, const Variant &args, Context &ctx)
     if ( data.isArray() ) {
         Variant::Array res ;
         for( size_t i=0 ; i<data.length() ; i++ ) {
-            Variant::Array lambda_args { result, i, data.at(i) } ;
+            Variant::Array lambda_args { result, (int64_t)i, data.at(i) } ;
             result = lambda.invoke(lambda_args).toFloat() ;
         }
         return result ;
@@ -796,6 +813,7 @@ FunctionFactory::FunctionFactory() {
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
     registerFunction("include",  include) ;
+    registerFunction("block",  block) ;
 
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;

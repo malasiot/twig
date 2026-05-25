@@ -549,12 +549,15 @@ Variant InvokeFunctionNode::eval(Context &ctx)
     Variant args ;
     evalArgs(args_, args, ctx) ;
 
+
     if (IdentifierNode *node = dynamic_cast<IdentifierNode *>(callable_.get()) ) {
         string fn_name = node->name() ;
-         FunctionFactory &ff = FunctionFactory::instance() ;
-         if ( ff.hasFunction(fn_name) ) {
+
+        FunctionFactory &ff = FunctionFactory::instance() ;
+        if ( ff.hasFunction(fn_name) ) {
             return ff.invokeFunction(fn_name, args, ctx) ; 
-         }
+        }
+        
     }
     Variant callable = callable_->eval(ctx) ;
 
@@ -601,6 +604,7 @@ void NamedBlockNode::eval(Context &ctx, string &res) const {
     }
 
 }
+
 
 void ExtensionBlockNode::eval(Context &ctx, string &res) const
 {
@@ -1112,7 +1116,7 @@ void EmbedBlockNode::eval(Context &ctx, string &res) const
 
 
 void Context::addBlock(detail::NamedBlockNodePtr node) {
-    blocks_.insert({node->name_, node}) ;
+    blocks_.emplace(node->name_, node) ;
 }
 
 }
