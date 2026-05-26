@@ -18,7 +18,7 @@ All data is represented by the Variant type that is a polymorphic JSON type obje
 
 Create a loader:
 
->  std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
+>    std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
 >        {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}{% endblock %}</body><footer>{% block footer %}footer{% endblock %}</footer>)"},
 >    })) ;
 
@@ -42,10 +42,10 @@ Render a template
 
 You may declare custom functions, filters, test by means of the global FunctionFactory object.
 
-> FunctionFactory::instance().registerFunction("lipsum",
-> [](const Variant &args) -> Variant {
->       Variant::Array vargs ;
->       unpack_args(args, {"data"}, vargs) ;
+>     FunctionFactory::instance().registerFunction("lipsum",
+>     [](const Variant &args) -> Variant {
+>         Variant::Array vargs ;
+>         unpack_args(args, {"data"}, vargs) ;
 >
 >       if ( !vargs.empty() ) {
 >           auto n = vargs[0].toInteger() ;
