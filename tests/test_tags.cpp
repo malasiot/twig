@@ -150,7 +150,7 @@ TEST_F(TagTest, ExtendsBlock) {
         {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block head %}{{ parent() }}-Head{% endblock %}{% block content %}<h1>Content</h1>{% endblock %})"},
         {"base2.html.twig", R"({% for item in seq %}<li>{% block loop_item %}{{ item }}{% endblock %}</li>{% endfor %})"},
         {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"},
-        {"base3.html.twig", R"({% block title%}Title{%endblock%}{% block content %}{% endblock %})"},
+        {"base3.html.twig", R"({% block title%}Title{%endblock%}{{block('title')}}{% block content %}{% endblock %})"},
         {"child3.html.twig", R"({% extends "base3.html.twig" %}{% block title %}title-{{ parent() }}{% endblock %})"}
     
     

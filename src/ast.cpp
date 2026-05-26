@@ -347,7 +347,7 @@ static void evalArgs(const arg_list_t &input_args, Variant &packed_args, Context
     packed.emplace("args", positional);
     packed.emplace("kw", kw) ;
 
-    packed_args = packed ;
+    packed_args = Variant(packed) ;
 }
 
 static Variant evalFilter(const string &name, const arg_list_t &args, const Variant &target, Context &ctx) {
