@@ -618,7 +618,13 @@ bool Parser::parseControlTagDeclaration() {
         pushControlBlock(n) ;
         
     }  else if ( expect("endset") ) {
-       popControlBlock("set") ;
+       popControlBlock("set") ; 
+    } else if ( expect("ref") ) {
+        string name ;
+        if ( !parseName(name) ) 
+            throwException("name expected after ref tag") ;
+        auto n = make_shared<RefBlockNode>(name) ;
+        addNode(n) ;
     }
 
     return consumed ;

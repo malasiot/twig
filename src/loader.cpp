@@ -32,16 +32,29 @@ string FileSystemTemplateLoader::load(const string &key) {
 }
 
 
-ArrayTemplateLoader::ArrayTemplateLoader(const std::map<std::string, std::string> &templates):
+DictTemplateLoader::DictTemplateLoader(const std::map<std::string, std::string> &templates):
     templates_(templates) {
 }
 
-string ArrayTemplateLoader::load(const string &key) {
+string DictTemplateLoader::load(const string &key) {
     auto it = templates_.find(key) ;
     if ( it != templates_.end() ) {
         return it->second ;
     }
     throw TemplateLoadException("Cannot find template: " + key) ;
 }
+
+string ChoiceTemplateLoader::load(const string &key) {
+    for ( auto l: loaders_ ) {
+        try {
+            return l->load(key) ;
+        } catch ( TemplateLoadException &e ) {
+
+        }
+    }
+
+    throw TemplateLoadException("Cannot find template: " + key) ;
+}
+
 
 }

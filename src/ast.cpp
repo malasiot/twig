@@ -580,6 +580,20 @@ Variant InvokeFunctionNode::eval(Context &ctx)
         throw TemplateRuntimeException("function invocation of non-callable variable") ;*/
 }
 
+const NamedBlockNode *ContainerNode::findBlock(const std::string &name) const {
+    const NamedBlockNode *n ;
+    if ( ( n = dynamic_cast<const NamedBlockNode *>(this) ) != nullptr )
+        return n ;
+    for( auto c: children_ ) {
+        ContainerNode *cn = dynamic_cast<ContainerNode *>(c.get()) ;
+        if ( cn ) {
+            n = cn->findBlock(name) ;
+            if ( n ) return n ;
+        }
+    }
+
+    return nullptr ;
+}
 
 void NamedBlockNode::eval(Context &ctx, string &res) const {
     auto it = ctx.blocks_.find(name_) ;
@@ -603,6 +617,15 @@ void NamedBlockNode::eval(Context &ctx, string &res) const {
         }
     }
 
+}
+
+void RefBlockNode::eval(Context &ctx, string &res) const {
+
+    const DocumentNode *r = root() ;
+
+    const NamedBlockNode *n = r->findBlock(name_) ;
+
+    if ( n ) n->eval(ctx, res) ;
 }
 
 

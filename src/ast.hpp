@@ -210,6 +210,7 @@ private:
     NodePtr rhs_ ;
 };
 
+
 class AssignmentNode: public Node {
 public:
     enum Type { SingleVariable, ArrayDestructring, DictionaryDestructuring } ;
@@ -360,6 +361,7 @@ public:
 
 typedef std::shared_ptr<ContentNode> ContentNodePtr ;
 
+
 class ContainerNode: public ContentNode {
 public:
 
@@ -367,6 +369,8 @@ public:
         children_.push_back(child) ;
         child->parent_ = this ;
     }
+
+    const NamedBlockNode *findBlock(const std::string &name) const ;
 
     virtual std::string tagName() const { return {} ; }
     virtual bool shouldClose() const { return true ; }
@@ -434,6 +438,18 @@ public:
 };
 
 typedef std::shared_ptr<NamedBlockNode> NamedBlockNodePtr ;
+
+class RefBlockNode: public ContentNode {
+public:
+
+    RefBlockNode(const std::string &name): name_(name) {}
+
+    void eval(Context &ctx, std::string &res) const override ;
+
+    bool shouldClose() const { return false ; }
+
+    std::string name_ ;
+};
 
 class ExtensionBlockNode: public ContainerNode {
 public:
@@ -649,7 +665,7 @@ public:
         for( auto &&e: children_ )
             e->eval(ctx, res) ;
     }
-
+   
     std::map<std::string, ContentNodePtr> macro_blocks_ ;
     TemplateRenderer &renderer_ ;
 };

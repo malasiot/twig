@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <memory>
 
 namespace twig {
 // abstract template loader
@@ -28,15 +29,26 @@ private:
     std::string suffix_ ;
 };
 
-class ArrayTemplateLoader: public TemplateLoader {
+class DictTemplateLoader: public TemplateLoader {
 
 public:
-    ArrayTemplateLoader(const std::map<std::string, std::string> &templates) ;
+    DictTemplateLoader(const std::map<std::string, std::string> &templates) ;
 
     virtual std::string load(const std::string &src) override ;
 
 private:
     std::map<std::string, std::string> templates_ ;
+};
+
+class ChoiceTemplateLoader: public TemplateLoader {
+
+public:
+    ChoiceTemplateLoader(const std::vector<std::shared_ptr<TemplateLoader>> &loaders): loaders_(loaders) {}
+
+    virtual std::string load(const std::string &src) override ;
+
+private:
+    std::vector<std::shared_ptr<TemplateLoader>> loaders_ ;
 };
 
 }

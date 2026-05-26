@@ -525,7 +525,7 @@ static Variant include(const Variant &args, Context &ctx) {
 
     return ctx.rdr_.render(unpacked[0].toString(), variables, ignore_missing) ;
 }
-
+/*
 static Variant block(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"name", "template?"}, unpacked) ;
@@ -541,7 +541,7 @@ static Variant block(const Variant &args, Context &ctx) {
     } else 
         return Variant::undefined() ;
 }
-
+*/
 static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"date?", "timezone?"}, unpacked) ;
@@ -813,8 +813,7 @@ FunctionFactory::FunctionFactory() {
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
     registerFunction("include",  include) ;
-    registerFunction("block",  block) ;
-
+  
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;
     registerTest("odd", _odd) ;

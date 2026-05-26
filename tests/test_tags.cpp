@@ -145,12 +145,12 @@ TEST_F(TagTest, VerbatimBlock) {
 
 TEST_F(TagTest, ExtendsBlock) {
 
-    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+    std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
         {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}{% endblock %}</body><footer>{% block footer %}footer{% endblock %}</footer>)"},
         {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block head %}{{ parent() }}-Head{% endblock %}{% block content %}<h1>Content</h1>{% endblock %})"},
         {"base2.html.twig", R"({% for item in seq %}<li>{% block loop_item %}{{ item }}{% endblock %}</li>{% endfor %})"},
         {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"},
-        {"base3.html.twig", R"({% block title%}Title{%endblock%}{{block('title')}}{% block content %}{% endblock %})"},
+        {"base3.html.twig", R"({% block title%}Title{%endblock%} {%ref title%}{% block content %}{% endblock %})"},
         {"child3.html.twig", R"({% extends "base3.html.twig" %}{% block title %}title-{{ parent() }}{% endblock %})"}
     
     
@@ -165,7 +165,7 @@ TEST_F(TagTest, ExtendsBlock) {
             EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
 
             output = rdr.render("child3.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
+            EXPECT_STREQ(output.c_str(), "title-Title title-Title") ;
     
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;
@@ -174,7 +174,7 @@ TEST_F(TagTest, ExtendsBlock) {
 
 TEST_F(TagTest, MacroBlock) {
 
-    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+    std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
         {"base1.html.twig", R"({% macro print_list(data, n=1) %}{%for item in data%}<li>{{loop.index0 + n}}-{{item}}</li>{%endfor%}{% endmacro %})"},
         {"child1.html.twig", R"({% import "base1.html.twig" as util %}{{ util.print_list(['A', 'B'])}})"},
         {"child2.html.twig", R"({% from "base1.html.twig" import print_list as pl %}{{ pl(['A', 'B'],n:3)}})"},
@@ -194,7 +194,7 @@ TEST_F(TagTest, MacroBlock) {
 };
 
 TEST_F(TagTest, IncludeBlock) {
-    std::shared_ptr<TemplateLoader> loader(new ArrayTemplateLoader({
+    std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
         {"base.html.twig", R"({{name}})"},
         {"child1.html.twig", R"(Hello {% include 'base.html.twig' with {'name': 'Fabien'} %})"},
         {"child2.html.twig", R"(Hello {% include 'base.html.twig' only %})"},
