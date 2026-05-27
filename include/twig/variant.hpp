@@ -582,7 +582,7 @@ public:
 
 
     // iterates dictionaries or arrays
-
+#if 0
     class iterator {
     public:
 
@@ -591,6 +591,9 @@ public:
         using difference_type   = std::ptrdiff_t;
         using pointer           = Variant*;
         using reference         = Variant&;
+
+        using ArrayIt = Array::iterator;
+        using ObjectIt = Object::iterator;
 
         iterator(const Variant &obj, bool set_to_begin = false): obj_(obj) {
             if ( obj.isObject() ) o_it_ = ( set_to_begin ) ? obj_.data_.o_.begin() : obj_.data_.o_.end();
@@ -693,6 +696,113 @@ public:
     iterator end() const {
         return iterator(*this, false) ;
     }
+#endif
+
+
+    template <typename VecIt, typename MapIt>
+    class iterator {
+        public:
+            
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type        = std::remove_const_t<Variant>;
+        using difference_type   = std::ptrdiff_t;
+        using pointer           = Variant*;
+        using reference         = Variant&;
+
+        iterator(VecIt it) : repr_(it) {}
+        iterator(MapIt it) : repr_(it) {}
+
+    // Implicit conversion from non-const to const iterator
+        template <typename VI, typename MI>
+        iterator(const iterator<VI, MI>& other): repr_(other.get_repr()) {}
+
+        const std::string &key() const {
+            if (std::holds_alternative<MapIt>(repr_)) {
+                return std::get<MapIt>(repr_)->first;
+            }
+            throw std::runtime_error("Cannot call key() on a vector/array variant iterator.");
+        }
+
+        reference value() const {
+            return **this;
+        }
+
+        // Standard Operators
+        reference operator*() const {
+            if (std::holds_alternative<VecIt>(repr_)) {
+                return *std::get<VecIt>(repr_);
+            } else {
+                return std::get<MapIt>(repr_)->second; 
+            }
+        }
+
+        pointer operator->() const { return &(operator*()); }
+
+        iterator& operator++() {
+            std::visit([](auto& it) { ++it; }, repr_);
+            return *this;
+        }
+
+        iterator operator++(int) {
+            iterator tmp = *this;
+            ++(*this);
+            return tmp;
+        }
+
+        iterator& operator--() {
+            std::visit([](auto& it) { --it; }, repr_);
+            return *this;
+        }
+
+        iterator operator--(int) {
+            GenericVariantIterator tmp = *this;
+            --(*this);
+            return tmp;
+        }
+
+        const std::variant<VecIt, MapIt>& get_repr() const { return repr_; }
+
+    private:
+        std::variant<VecIt, MapIt> repr_;
+    };
+
+    using iterator_t       = iterator<Array::iterator, Object::iterator>;
+    using const_iterator_t = iterator<Array::const_iterator, Object::const_iterator>;
+
+    using reverse_iterator_t       = std::reverse_iterator<iterator_t>;
+    using const_reverse_iterator_t = std::reverse_iterator<const_iterator_t>;
+
+    // Non-const Iterators
+    iterator_t begin() {
+        if ( isArray() ) return iterator_t(data_.a_.begin());
+        else if ( isObject() ) return iterator_t(data_.o_.begin());
+        else throw std::runtime_error("this object cannot be iterated");
+    }
+
+    iterator_t end() {
+       if ( isArray() ) return iterator_t(data_.a_.end());
+        else if ( isObject() ) return iterator_t(data_.o_.end());
+        else throw std::runtime_error("this object cannot be iterated");
+    }
+
+    // Const Iterators
+    const_iterator_t begin() const {
+        if ( isArray() ) return const_iterator_t(data_.a_.begin());
+        else if ( isObject() ) return const_iterator_t(data_.o_.begin());
+        else throw std::runtime_error("this object cannot be iterated");
+    }
+    const_iterator_t end() const {
+       if ( isArray() ) return const_iterator_t(data_.a_.begin());
+        else if ( isObject() ) return const_iterator_t(data_.o_.begin());
+        else throw std::runtime_error("this object cannot be iterated");
+    }
+
+    // Reverse Iterators
+    reverse_iterator_t rbegin() { return reverse_iterator(end()); }
+    reverse_iterator_t rend() { return reverse_iterator(begin()); }
+    
+    const_reverse_iterator_t rbegin() const { return const_reverse_iterator_t(end()); }
+    const_reverse_iterator_t rend() const { return const_reverse_iterator_t(begin()); }
 
     static const Variant &null() {
         static Variant null_value ;
