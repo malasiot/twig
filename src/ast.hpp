@@ -476,6 +476,19 @@ public:
     bool ignore_missing_, only_flag_ ;
 };
 
+class FormThemeBlockNode: public ContentNode {
+public:
+
+    FormThemeBlockNode(const std::string &name, NodePtr source, bool only):
+        name_(name), source_(source), only_flag_(only) {}
+
+    void eval(Context &ctx, std::string &res) const override ;
+
+    std::string name_ ;
+    NodePtr source_ ;
+    bool only_flag_ ;
+};
+
 class EmbedBlockNode: public ContainerNode {
 public:
 

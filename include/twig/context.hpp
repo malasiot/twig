@@ -2,6 +2,7 @@
 #define TWIG_CONTEXT_HPP
 
 #include <memory>
+#include <set>
 
 #include "variant.hpp"
 
@@ -47,6 +48,11 @@ public:
     std::map<std::string, detail::NamedBlockNodePtr> blocks_ ;
     TemplateRenderer &rdr_ ;
     std::string escape_mode_ = "no";
+    std::unordered_map<std::string, detail::DocumentNodePtr> themes_ ; 
+    std::unordered_map<std::string, std::vector<std::string>> form_to_themes_map_;
+    std::unordered_map<std::string, bool> form_blocks_globals_ ;
+    std::set<std::string> rendered_form_fields_ ;
+    std::string active_form_id_ ;
 };
 } // twig
 #endif

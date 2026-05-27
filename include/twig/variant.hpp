@@ -457,6 +457,7 @@ public:
     // Returns a member value given the key. The key is of the form <member1>[.<member2>. ... <memberN>]
     // If this is not an object or the key is not found it returns a Null
 
+
     const Variant &at(const std::string &key) const {
 
         if ( key.empty() ) return Variant::undefined() ;
@@ -480,6 +481,11 @@ public:
         }
 
         return Variant::undefined() ;
+    }
+
+    Variant get(const std::string &key, const Variant &default_val) const {
+        const auto &v = (*this).at(key) ;
+        return v.isUndefined() ? default_val : v ;
     }
 
     // return an element of an array
@@ -579,6 +585,13 @@ public:
 
     class iterator {
     public:
+
+        using iterator_category = std::bidirectional_iterator_tag; 
+        using value_type        = Variant;
+        using difference_type   = std::ptrdiff_t;
+        using pointer           = Variant*;
+        using reference         = Variant&;
+
         iterator(const Variant &obj, bool set_to_begin = false): obj_(obj) {
             if ( obj.isObject() ) o_it_ = ( set_to_begin ) ? obj_.data_.o_.begin() : obj_.data_.o_.end();
             else if ( obj.isArray() ) a_it_ = ( set_to_begin ) ? obj_.data_.a_.begin() : obj_.data_.a_.end();
@@ -668,6 +681,10 @@ public:
         Object::const_iterator o_it_ ;
         Array::const_iterator a_it_ ;
     } ;
+
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const iterator>;
+
 
     iterator begin() const {
         return iterator(*this, true) ;

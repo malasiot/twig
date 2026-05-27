@@ -582,7 +582,7 @@ Variant InvokeFunctionNode::eval(Context &ctx)
 
 const NamedBlockNode *ContainerNode::findBlock(const std::string &name) const {
     const NamedBlockNode *n ;
-    if ( ( n = dynamic_cast<const NamedBlockNode *>(this) ) != nullptr )
+    if ( ( n = dynamic_cast<const NamedBlockNode *>(this) ) != nullptr && n->name_ == name )
         return n ;
     for( auto c: children_ ) {
         ContainerNode *cn = dynamic_cast<ContainerNode *>(c.get()) ;
@@ -861,6 +861,36 @@ void IncludeBlockNode::eval(Context &ctx, string &res) const
             cctx.data()[e.first] = e.second ;
         doc->eval(cctx, res) ;
     }
+}
+
+void FormThemeBlockNode::eval(Context &ctx, string &res) const
+{
+    std::string form_id = name_; 
+
+    Variant source = source_->eval(ctx) ;
+
+    std::vector<std::string> theme_resources;
+    if ( source.isArray()) {
+        for (const auto& item : source.toArray() ) 
+            theme_resources.push_back(item.toString());
+    } else {
+        theme_resources.push_back(source.toString());
+    }
+
+    // parse resources and store them in the context
+
+    for ( const auto& res : theme_resources ) {
+        try {
+            DocumentNodePtr doc = ctx.rdr_.compile(res) ;
+            ctx.themes_.emplace(res, doc) ;
+        }
+        catch ( TemplateCompileException &e ) {
+
+        }
+    }
+
+    ctx.form_to_themes_map_[form_id] = theme_resources ;
+    ctx.form_blocks_globals_[form_id] = only_flag_ ;
 }
 
 

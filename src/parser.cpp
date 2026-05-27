@@ -421,6 +421,22 @@ bool Parser::parseControlTagDeclaration() {
         string name ;
         parseName(name) ;
         popControlBlock("block") ;
+    } else if ( expect("form_theme") ) {
+        string name ;
+        if ( !parseName(name) ) 
+            throwException("name expected after form_theme") ;
+        auto e = parseExpression() ;
+        if ( !e ) 
+            throwException("expected expression") ;
+                
+        bool with_only = false ;
+        
+        if ( expect("only"))
+            with_only = true ;
+
+        auto n = make_shared<FormThemeBlockNode>(name, e, with_only) ;
+        addNode(n) ;
+        
     } else if ( expect("for") ) {
         identifier_list_t ids ;
         if ( !parseNameList(ids) )
@@ -625,7 +641,7 @@ bool Parser::parseControlTagDeclaration() {
             throwException("name expected after ref tag") ;
         auto n = make_shared<RefBlockNode>(name) ;
         addNode(n) ;
-    }
+    } 
 
     return consumed ;
 }

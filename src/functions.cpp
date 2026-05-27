@@ -780,6 +780,10 @@ static bool _map(const Variant &target, const Variant &args, Context &ctx) {
     return target.isObject()  ;
 }
 
+extern Variant form_start(const Variant &args, Context &ctx) ;
+extern Variant form_end(const Variant &args, Context &ctx) ;
+extern Variant form_row(const Variant &args, Context &ctx) ;
+
 FunctionFactory::FunctionFactory() {
     registerFilter("join", _join);
     registerFilter("lower", _lower);
@@ -813,6 +817,10 @@ FunctionFactory::FunctionFactory() {
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
     registerFunction("include",  include) ;
+
+    registerFunction("form_row",  form_row) ;
+    registerFunction("form_start",  form_start) ;
+    registerFunction("form_end",  form_end) ;
   
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;
