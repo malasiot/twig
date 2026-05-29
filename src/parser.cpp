@@ -20,7 +20,6 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             c = *pos_++ ;
             if ( c == '{' ) {
                 parseSubstitutionTag() ;
-
             }
             else if ( c == '%' ) {
                 parseControlTag() ;
@@ -40,7 +39,6 @@ bool Parser::parse(DocumentNodePtr node, const string &resourceId ) {
             auto n = parseRaw(false) ;
             addNode(n) ;
         }
-
     }
 
     return true ;
@@ -80,8 +78,6 @@ bool Parser::decodeUnicode(uint &cp)
 void Parser::throwException(const string msg) {
     throw ParseException(msg, pos_.line_, pos_.column_) ;
 }
-
-
 
 bool Parser::expect(char c) {
     skipSpace() ;
@@ -125,7 +121,6 @@ void Parser::eatComment()
     }
 
     throwException("unclosed comment") ;
-
 }
 
 
@@ -413,36 +408,17 @@ bool Parser::parseControlTagDeclaration() {
         auto n = std::make_shared<NamedBlockNode>(name) ;
         addNode(n) ;
         pushControlBlock(n) ;
-
-
     } else if ( expect("endblock") ) {
         string name ;
         parseName(name) ;
         popControlBlock("block") ;
-    } else if ( expect("form_theme") ) {
-        string name ;
-        if ( !parseName(name) ) 
-            throwException("name expected after form_theme") ;
-        auto e = parseExpression() ;
-        if ( !e ) 
-            throwException("expected expression") ;
-                
-        bool with_only = false ;
-        
-        if ( expect("only"))
-            with_only = true ;
-
-        auto n = make_shared<FormThemeBlockNode>(name, e, with_only) ;
-        addNode(n) ;
-        
     } else if ( expect("for") ) {
         identifier_list_t ids ;
         if ( !parseNameList(ids) )
-            throwException("identifier list expected") ;
+            throwException("identifier list expected in for loop") ;
         if ( !expect("in") )
-            throwException("'in' keyword expected") ;
+            throwException("'in' keyword expected in for loop") ;
         auto e = parseExpression() ;
-    
       
         if ( !e )
             throwException("missing for loop expression") ;
@@ -499,10 +475,6 @@ bool Parser::parseControlTagDeclaration() {
             throwException("expecting expression") ;
         auto n = make_shared<ExtensionBlockNode>(e);
         root_->addChild(n);
-        //addNode(n) ;
-      //  pushControlBlock(n) ;
-    }  else if ( expect("endextends") ) {
-        popControlBlock("extends") ;
     }  else if ( expect("macro") ) {
         string name ;
         if ( parseName(name) ) {
@@ -661,9 +633,6 @@ void Parser::parseSubstitutionTag() {
 
     if ( trim_after )
         trimWhiteAfter();
-
-
-
 }
 
 ContentNodePtr Parser::parseRaw(bool br) {
@@ -683,9 +652,6 @@ ContentNodePtr Parser::parseRaw(bool br) {
 
     return make_shared<RawTextNode>(res) ;
 }
-
-// f = e g | e
-// g = '|' name '(' args ')' g
 
 NodePtr Parser::parseFilterExpression()
 {
@@ -879,15 +845,12 @@ NodePtr Parser::parseAssignment() {
 
 NodePtr Parser::parseExpression() {
     // check for lambda expression first since it can start with an open parenthesis which is also valid for other expressions.
-   
     if ( auto lambda = parseLambda() ) return lambda ;
 
     // test for assignment expression before ternary since the right-hand side of an assignment can be a ternary expression and we want to make sure that we parse it as an assignment and not as a ternary with an assignment in the true branch which is not what we want.
-
     if ( auto assign = parseAssignment() ) return assign ;
 
    return parseTernary() ;
-
 }
 
 NodePtr Parser::parseTernary() {
@@ -1107,7 +1070,6 @@ NodePtr Parser::parseMulDiv()
         else
             return lhs ;
     }
-     
 }
 
 NodePtr Parser::parseTest() {
@@ -1159,8 +1121,7 @@ NodePtr Parser::parseUnary() {
     } else return parseFilterExpression() ;
 }
 
-NodePtr Parser::parseArray()
-{
+NodePtr Parser::parseArray() {
     Variant::Array elements ;
 
     if ( expect('[') ) {
@@ -1189,7 +1150,6 @@ NodePtr Parser::parseArray()
     }
 
     return nullptr ;
-
 }
 
 bool Parser::parseKeyValuePair(string &key, NodePtr &val) {
@@ -1420,7 +1380,5 @@ void Parser::addNode(ContentNodePtr node) {
 
     stack_.back()->addChild(node) ;
 }
-
-
 
 }}

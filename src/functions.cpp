@@ -837,10 +837,6 @@ FunctionFactory::FunctionFactory() {
     registerFunction("include",  include) ;
     registerFunction("parent", parent);
     registerFunction("block", block);
-
-    registerFunction("form_row",  form_row) ;
-    registerFunction("form_start",  form_start) ;
-    registerFunction("form_end",  form_end) ;
   
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;

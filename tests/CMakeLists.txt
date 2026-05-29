@@ -18,7 +18,6 @@ add_executable(twig_tests
     test_tags.cpp
     test_functions.cpp
     test_expressions.cpp
- #   test_forms.cpp
 )
 
 # Link against the main library and gtest

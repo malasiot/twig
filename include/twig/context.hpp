@@ -43,16 +43,10 @@ public:
     void addBlock(detail::NamedBlockNodePtr node) ;
 
     Variant::Object data_ ;
-
     TemplateRenderer &rdr_ ;
     std::string escape_mode_ = "no";
     detail::DocumentNode *root_tmpl_ = nullptr ;
     detail::NamedBlockNode *active_block_  = nullptr;
-    std::unordered_map<std::string, detail::DocumentNodePtr> themes_ ; 
-    std::unordered_map<std::string, std::vector<std::string>> form_to_themes_map_;
-    std::unordered_map<std::string, bool> form_blocks_globals_ ;
-    std::set<std::string> rendered_form_fields_ ;
-    std::string active_form_id_ ;
 };
 } // twig
 #endif

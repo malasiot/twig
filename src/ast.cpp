@@ -144,21 +144,8 @@ Variant ComparisonPredicate::eval(Context &ctx)
     return variant_compare(lhs, rhs, op_);
 }
 
-Variant IdentifierNode::eval(Context &ctx)
-{
-  /*  if ( FunctionFactory::instance().hasFunction(name_) ) {
-        return Variant(Variant::Function([=](const Variant &args) {
-            return FunctionFactory::instance().invoke(name_, args) ;
-        })) ;
-    }
-    else*/ {
-        return ctx.get(name_) ;
-        /*
-        auto it = ctx.data().find(name_) ;
-        if ( it == ctx.data().end() ) return Variant::undefined() ;
-        else return it->second ;
-        */
-    }
+Variant IdentifierNode::eval(Context &ctx) {
+    return ctx.get(name_);
 }
 
 static int64_t arithmetic(int64_t lhs, int64_t rhs, const std::string &op) {
@@ -207,17 +194,10 @@ static Variant arithmetic(const Variant &lhs, const Variant &rhs, const std::str
         return arithmetic(lhs.toInteger(), rhs.toInteger(), op) ;
 }
 
-Variant BinaryOperator::eval(Context &ctx)
-{
+Variant BinaryOperator::eval(Context &ctx) {
     Variant op1 = lhs_->eval(ctx) ;
     Variant op2 = rhs_->eval(ctx) ;
 
-  /*  if ( op1.isUndefined() || op1.isNull() )
-        throw TemplateRuntimeException(str(boost::format("Undefined or null value on the left of %c operator") % (char)op_)) ;
-
-    if ( op2.isUndefined() || op2.isNull() )
-        throw TemplateRuntimeException(str(boost::format("Undefined or null value on the right of %c operator") % (char)op_)) ;
-*/
     if ( op_ == "??" ) {
         if (op1.isUndefined() || op1.isNull()) return op2 ;
         else return op1 ;
@@ -229,10 +209,7 @@ Variant BinaryOperator::eval(Context &ctx)
         throw TemplateRuntimeException("Unknown binary operator: " + op_) ;
 }
 
-
-
-Variant UnaryOperator::eval(Context &ctx)
-{
+Variant UnaryOperator::eval(Context &ctx) {
     Variant val = rhs_->eval(ctx) ;
 
     if ( op_ == '-' ) {
@@ -244,12 +221,10 @@ Variant UnaryOperator::eval(Context &ctx)
 }
 
 Variant SpreadOperator::eval(Context &ctx) {
-    Variant v = rhs_->eval(ctx) ;
-    return v ;
+    return rhs_->eval(ctx) ;
 }
 
-Variant ArrayNode::eval(Context &ctx)
-{
+Variant ArrayNode::eval(Context &ctx) {
     Variant::Array a ;
 
     for ( NodePtr e: elements_ ) {
@@ -271,8 +246,7 @@ Variant ArrayNode::eval(Context &ctx)
     return a ;
 }
 
-Variant DictionaryNode::eval(Context &ctx)
-{
+Variant DictionaryNode::eval(Context &ctx) {
     Variant::Object o ;
 
     for ( auto &kv: elements_ ) {
@@ -282,8 +256,7 @@ Variant DictionaryNode::eval(Context &ctx)
     return o ;
 }
 
-Variant SubscriptIndexingNode::eval(Context &ctx)
-{
+Variant SubscriptIndexingNode::eval(Context &ctx) {
     Variant index = index_->eval(ctx) ;
 
     if ( index.isUndefined() || index.isNull() )
@@ -314,8 +287,7 @@ Variant AttributeIndexingNode::eval(Context &ctx) {
 }
 
 
-static void evalArgs(const arg_list_t &input_args, Variant &packed_args, Context &ctx)
-{
+static void evalArgs(const arg_list_t &input_args, Variant &packed_args, Context &ctx) {
     Variant::Array positional ;
     Variant::Object kw ;
 
@@ -414,17 +386,13 @@ Variant RangeOperatorNode::eval(Context &ctx)
     } else 
             
     throw TemplateRuntimeException("Invalid operands for range operator") ;
-    
 }
 
 Variant InvokeTestNode::eval(Context &ctx) {
     Variant target = target_->eval(ctx) ;
 
     Variant v = evalFilter(name_, args_, target, ctx) ;
-/*
-    if ( v.type() != Variant::Type::Boolean )
-        throw TemplateRuntimeException("test function returning non-boolean value") ;
-*/
+
     bool res = v.toBoolean() ;
 
     return ( positive_ ) ? res : !res ;
@@ -493,14 +461,7 @@ void IfBlockNode::eval(Context &ctx, string &res)
     }
 }
 
-/*
-Variant TernaryExpressionNode::eval(Context &ctx)
-{
-    if ( condition_->eval(ctx).toBoolean() )
-        return positive_->eval(ctx) ;
-    else return negative_ ? negative_->eval(ctx) : Variant::null() ;
-}
-*/
+
 void AssignmentBlockNode::eval(Context &ctx, string &res) {
     if ( names_.size() == 1 && values_.empty() ) { // block assignment
         string subres ;
@@ -523,7 +484,6 @@ void AssignmentBlockNode::eval(Context &ctx, string &res) {
 
 
 void ApplyBlockNode::eval(Context &ctx, string &res) {
-// render block content
     string block_res ;
     for( auto &&c: children_ )
         c->eval(ctx, block_res) ;
@@ -532,8 +492,7 @@ void ApplyBlockNode::eval(Context &ctx, string &res) {
     res.append(v.toString());
 }
 
-void FilterBlockNode::eval(Context &ctx, string &res) 
-{
+void FilterBlockNode::eval(Context &ctx, string &res) {
     string block_res ;
     for( auto &&c: children_ )
         c->eval(ctx, block_res) ;
@@ -548,7 +507,6 @@ Variant InvokeFunctionNode::eval(Context &ctx)
 {
     Variant args ;
     evalArgs(args_, args, ctx) ;
-
 
     if (IdentifierNode *node = dynamic_cast<IdentifierNode *>(callable_.get()) ) {
         string fn_name = node->name() ;
@@ -565,19 +523,6 @@ Variant InvokeFunctionNode::eval(Context &ctx)
         return callable.invoke(args) ;
     else
         throw TemplateRuntimeException("function invocation of non-callable variable") ;
-/*
-    Variant f = ctx.get(callable_) ;
-    
-    if ( f.isUndefined() || f.isNull() ) {
-        FunctionFactory &ff = FunctionFactory::instance() ;
-        if ( ff.hasFunction(callable_) ) {
-            return ff.invokeFunction(callable_, args, ctx) ; 
-        }
-            
-    } else if ( f.type() == Variant::Type::Function )
-        return f.invoke(args) ;
-    else
-        throw TemplateRuntimeException("function invocation of non-callable variable") ;*/
 }
 
  NamedBlockNode *DocumentNode::findBlock(const std::string &name) {
@@ -619,29 +564,6 @@ void NamedBlockNode::eval(Context &ctx, string &res) {
     } else {
         res.append(resolve_and_render_block(name_, ctx.root_tmpl_, ctx));
     }
-
-/*
-    auto it = ctx.blocks_.find(name_) ;
-    if ( it != ctx.blocks_.end() ) {
-        Context cctx(ctx) ;
-        cctx.data()["parent"] = Variant([&](const Variant &) -> Variant {
-            string pp ;
-            for( auto &&c: children_ ) {
-                c->eval(cctx, pp) ;
-            }
-            return Variant(pp) ;
-        }) ;
-
-        for( auto &&c: it->second->children_ ) {
-            c->eval(cctx, res) ;
-        }
-    }
-    else {
-        for( auto &&c: children_ ) {
-            c->eval(ctx, res) ;
-        }
-    }*/
-
 }
 
 void RefBlockNode::eval(Context &ctx, string &res) {
@@ -685,20 +607,13 @@ void DocumentNode::eval(Context &ctx, string &res) {
 
 }
 
-void ExtensionBlockNode::eval(Context &ctx, string &res)
-{
-
+void ExtensionBlockNode::eval(Context &ctx, string &res) {
 }
 
-
-
-void MacroBlockNode::eval(Context &ctx, string &str)
-{
-
+void MacroBlockNode::eval(Context &ctx, string &str) {
 }
 
-void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
-{
+void MacroBlockNode::mapArguments(const Variant &args, Context &ctx) {
     Variant pos_args = args["args"];
     Variant kw_args = args["kw"];
 
@@ -724,8 +639,10 @@ void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
 }
 
 Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
-
-    Context mctx(ctx) ;
+// macros should start from the empty context
+// we only add the _self key
+    Context mctx(ctx.rdr_, {}) ;
+    mctx.data_["_self"] = ctx.data_["_self"] ; 
 
     mapArguments(args, mctx) ;
 
@@ -738,8 +655,9 @@ Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
     return Variant(out, true) ; // macros should return safe strings
 }
 
-void ImportBlockNode::eval(Context &ctx, string &res)
-{
+// TODO: handle edge case that call is inside a block accessed by parent()
+
+void ImportBlockNode::eval(Context &ctx, string &res) {
     DocumentNodePtr doc ;
 
     if ( source_ ) {
@@ -763,8 +681,7 @@ void ImportBlockNode::eval(Context &ctx, string &res)
         if ( p_macro ) {
 
              auto macro_fn = [&pctx, p_macro](const Variant &args) -> Variant {
-                Context lctx(pctx) ;
-                return p_macro->call(lctx, args) ;
+                return p_macro->call(pctx, args) ;
             };
 
             string mapped_name ;
@@ -782,7 +699,7 @@ void ImportBlockNode::eval(Context &ctx, string &res)
         }
     }
 
-    pctx.data_["_self"] =all_macros ;
+    pctx.data_["_self"] = all_macros ;
 
     for( auto &&c: children_ ) {
         c->eval(pctx, res) ;
@@ -791,7 +708,6 @@ void ImportBlockNode::eval(Context &ctx, string &res)
 }
 
 bool ImportBlockNode::mapMacro(MacroBlockNode &n, string &name) const {
-
     // only namespace given import all macros using their name
     if ( mapping_.empty() ) {
         name = n.name_ ;
@@ -875,37 +791,6 @@ void IncludeBlockNode::eval(Context &ctx, string &res)
         doc->eval(cctx, res) ;
     }
 }
-
-void FormThemeBlockNode::eval(Context &ctx, string &res)
-{
-    std::string form_id = name_; 
-
-    Variant source = source_->eval(ctx) ;
-
-    std::vector<std::string> theme_resources;
-    if ( source.isArray()) {
-        for (const auto& item : source.toArray() ) 
-            theme_resources.push_back(item.toString());
-    } else {
-        theme_resources.push_back(source.toString());
-    }
-
-    // parse resources and store them in the context
-
-    for ( const auto& res : theme_resources ) {
-        try {
-            DocumentNodePtr doc = ctx.rdr_.compile(res) ;
-            ctx.themes_.emplace(res, doc) ;
-        }
-        catch ( TemplateCompileException &e ) {
-
-        }
-    }
-
-    ctx.form_to_themes_map_[form_id] = theme_resources ;
-    ctx.form_blocks_globals_[form_id] = only_flag_ ;
-}
-
 
 void WithBlockNode::eval(Context &ctx, string &res)
 {
@@ -1177,12 +1062,49 @@ void EmbedBlockNode::eval(Context &ctx, string &res)
 
 }
 
+#if 0
+ // Guard: Throw an exception if none of the templates exist in the filesystem
+    if (!target_doc) {
+        std::string attempted = "";
+        for (const auto& p : paths_to_try) attempted += "'" + p + "' ";
+        throw TemplateRuntimeException("Embed error: None of the target templates could be loaded: " + attempted);
+    }
+
+    // 3. Setup a lightweight "Virtual Child" layer to hold our block overrides
+    auto virtual_child = std::make_unique<DocumentNode>();
+    virtual_child->template_path = ctx.current_executing_template ? ctx.current_executing_template->template_path : "embed_context";
+    
+    // Link our virtual file directly to the top of the discovered embedded template
+    virtual_child->parent_template = target_doc; 
+    virtual_child->local_blocks = this->embed_overrides; 
+
+    // Update block ownership pointers so parent() works relative to this virtual layer
+    for (auto& [name, block_node] : this->embed_overrides) {
+        const_cast<BlockDefinitionNode*>(block_node)->owning_template = virtual_child.get();
+    }
+
+    // 4. Create an isolated sub-render context pass by copying ctx by value
+    RenderContext embed_ctx = ctx;
+    
+    // Lock the leaf template variable exclusively to our new virtual child layout.
+    // This forces block lookups inside the embed pipeline to search our overrides first!
+    embed_ctx.leaf_template = virtual_child.get();
+
+    // 5. Climb straight to the absolute highest root parent file of the embedded template
+    const DocumentNode* root_template = target_doc.get();
+    while (root_template->parent_template != nullptr) {
+        root_template = root_template->parent_template.get();
+    }
+
+    // 6. Force evaluation to start from the embedded template's root down to the output stream
+    std::string embed_output = "";
+    for (const auto& node : root_template->local_nodes) {
+        embed_output += node->eval(embed_ctx);
+    }
+
+#endif
 
 } // detail
 
-
-void Context::addBlock(detail::NamedBlockNodePtr node) {
- //   blocks_.emplace(node->name_, node) ;
-}
 
 }

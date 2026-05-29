@@ -245,3 +245,72 @@ TEST_F(TagTest, IncludeBlock) {
         FAIL() << "Compilation failed: " << e.what() ;
     }
 };
+#if 0
+twig<main>
+    {% embed "card.twig" %}
+        {% block card_body %}
+            <p>This is overridden body content.</p>
+        {% endblock %}
+    {% endembed %}
+</main>
+Use code with caution.card.twig (The Embedded Component)twig<div class="card">
+    <div class="card-header">{% block card_header %}Default Header{% endblock %}</div>
+    <div class="card-body">{% block card_body %}Default Body Content{% endblock %}</div>
+</div>
+Use code with caution.Expected String Output:html<main>
+<div class="card">
+    <div class="card-header">Default Header</div>
+    <div class="card-body">
+            <p>This is overridden body content.</p>
+        </div>
+</div>
+</main>
+
+
+
+twig<div>
+    {% embed ["custom/modal.twig", "core/modal.twig"] %}
+        {% block modal_title %}Warning{% endblock %}
+    {% endembed %}
+</div>
+Use code with caution.(Assumes custom/modal.twig does not exist on disk, forcing the engine to fallback to the core file).core/modal.twig (The Fallback Component)twig<div class="modal">
+    <h2>{% block modal_title %}Default Title{% endblock %}</h2>
+    <p>Modal Content</p>
+</div>
+Use code with caution.Expected String Output:html<div>
+    <div class="modal">
+    <h2>Warning</h2>
+    <p>Modal Content</p>
+</div>
+</div>
+
+
+page.twig (The Main Page)twig{% embed "alert.twig" %}
+    {% block alert_content %}
+        <strong>Error:</strong> {{ parent() }}
+    {% endblock %}
+{% endembed %}
+Use code with caution.alert.twig (The Embedded Component)twig<div class="alert">
+    {% block alert_content %}Something went wrong!{% endblock %}
+</div>
+Use code with caution.Expected String Output:html<div class="alert">
+    
+        <strong>Error:</strong> Something went wrong!
+    
+</div>
+
+page.twig (The Main Page)twig{% embed "advanced_input.twig" %}
+    {% block label %}Username:{% endblock %}
+{% endembed %}
+Use code with caution.advanced_input.twig (The Embedded File)twig{% extends "base_field.twig" %}
+{% block input_element %}<input type="text">{% endblock %}
+Use code with caution.base_field.twig (The Embedded File's Parent)twig<div class="field">
+    <label>{% block label %}Default Label{% endblock %}</label>
+    <div class="control">{% block input_element %}{% endblock %}</div>
+</div>
+Use code with caution.Expected String Output:html<div class="field">
+    <label>Username:</label>
+    <div class="control"><input type="text"></div>
+</div>
+
+#endif
