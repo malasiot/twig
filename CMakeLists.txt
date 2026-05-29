@@ -29,12 +29,17 @@ add_library(twig SHARED
     src/json_parser.cpp
     src/date_helpers.cpp
     src/format.cpp
+    src/form_helper.cpp
+    src/validator.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/exceptions.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/renderer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/date_helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/form_helper.hpp
+    include/twig/validator.hpp
+
     
 )
 
