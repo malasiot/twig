@@ -32,7 +32,7 @@ string TemplateRenderer::renderString(const string &str, const Variant::Object &
          ast->eval(eval_ctx, res) ;
          return res ;
     } catch ( detail::ParseException &e ) {
-        throw TemplateCompileException(string("Error compiling template string: ") + e.what()) ;
+        throw TemplateCompileException(e.what()) ;
         return string() ;   
     }
 }
@@ -55,9 +55,7 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
         parser.parse(root, resource) ;
         root->populateBlocks() ;
     } catch ( detail::ParseException & e ) {
-        stringstream s ;
-        s << "Error compiling '" << resource << "': " << e.msg_ << " at " << e.line_ << '(' << e.col_ << ')' ;
-        throw TemplateCompileException(s.str()) ;
+        throw TemplateCompileException(e.what()) ;
     }
 
     if ( cache_ ) cache_->add(resource, root) ;

@@ -26,7 +26,7 @@ namespace twig {
 Variant FunctionFactory::invokeFunction(const string &name, const Variant &args, Context &ctx) {
     auto it = functions_.find(name) ;
     if ( it == functions_.end() )
-        throw TemplateRuntimeException("Unknown function: " + name) ;
+        throw TemplateRuntimeException("Unknown function '" + name + "'") ;
 
     return (it->second)(args, ctx) ;
 }
@@ -35,7 +35,7 @@ Variant FunctionFactory::invokeFilter(const string &name, const Variant &target,
 {
     auto it = filters_.find(name) ;
     if ( it == filters_.end() )
-        throw TemplateRuntimeException("Unknown filter: " + name) ;
+        throw TemplateRuntimeException("Unknown filter '" + name + "'") ;
 
     return (it->second)(target, args, ctx) ;
 }
@@ -44,7 +44,7 @@ Variant FunctionFactory::invokeTest(const string &name, const Variant &target, c
 {
     auto it = tests_.find(name) ;
     if ( it == tests_.end() )
-        throw TemplateRuntimeException("Unknown test: " + name) ;
+        throw TemplateRuntimeException("Unknown test " + name + "'") ;
 
     return (it->second)(target, args, ctx) ;
 }
@@ -546,7 +546,11 @@ static Variant parent(const Variant &args, Context &ctx) {
     Context nested_ctx(ctx) ;
 
     // Ask the engine to resolve the block starting strictly from the parent layer upward
-    return resolve_and_render_block(ctx.active_block_->name_, parent_layer, nested_ctx);
+    try {
+        return resolve_and_render_block(ctx.active_block_->name_, parent_layer, nested_ctx);
+    } catch ( TemplateRuntimeException &e ) {
+        current_block_owner->throwException(e.what()) ;
+    }
 
 }
 
@@ -556,8 +560,12 @@ static Variant block(const Variant &args, Context &ctx) {
 
     string name = unpacked[0].toString() ;
    
-    Context nested_ctx(ctx) ;
-    return resolve_and_render_block(name, ctx.root_tmpl_, nested_ctx);
+    try {
+        Context nested_ctx(ctx) ;
+        return resolve_and_render_block(name, ctx.root_tmpl_, nested_ctx);
+    } catch ( TemplateRuntimeException &e ) {
+        ctx.root_tmpl_->throwException(e.what()) ;
+    }
 }
 
 static Variant date(const Variant &args, Context &ctx) {

@@ -55,7 +55,7 @@ TEST_F(ExpressiongTest, Arithmetic) {
   TemplateRenderer rdr(nullptr) ;
 
    vector<pair<string, string>> exprs{ 
-    { R"({{ 2 + (3 - 4)/3}})", "1.66666" },
+    { R"({{  2 + (3 - 4)/3}})", "1.66666" },
    { R"({{ 2 * (3 - 4)/3 }})", "-0.66666" },
     { R"({{ 2 / (3 - 4)/3}})", "-0.66666" },
     { R"({{ 2 % (3 - 4)/3}})", "0" },

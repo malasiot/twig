@@ -1,11 +1,11 @@
 # Twig template engine in c++
 
 ### Supported tags:
-apply, autoescape, block, embed, extends, for, from, if, import, include, macro, set, verbatim, with
-(use {% ref block_name %} instead of block function for repeating a block)
+apply, autoescape, block, embed, extends, for, from, if, import, include, macro, set, verbatim, with, filter
+
 
 ### Supported functions:
-cycle, date, include, max, min, parent, random, range
+cycle, date, include, max, min, parent, random, range, block, parent
 
 ### Supported filters:
 join, lower, upper, default, e, escape, defined, length, first, last, raw, safe, batch, merge, date,

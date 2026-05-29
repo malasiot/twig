@@ -146,14 +146,14 @@ private:
 
 class ParseException {
 public:
-    ParseException(const std::string &msg, size_t line, size_t col): msg_(msg), line_(line), col_(col) {}
+    ParseException(const std::string &msg, size_t line, size_t col, const std::string &resource_id): msg_(msg), line_(line), col_(col), resource_id_(resource_id) {}
 
     std::string what() const {
-        return std::string("Parse error at line ") + std::to_string(line_) + ", column " + std::to_string(col_) + ": " + msg_ ;
+        return msg_ + " at " + resource_id_ + "@" + std::to_string(line_) + "(" + std::to_string(col_) + ")";
     }
 
     size_t line_, col_ ;
-    std::string msg_ ;
+    std::string msg_, resource_id_ ;
 };
 
 }}

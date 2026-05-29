@@ -14,8 +14,19 @@ extern Variant escape(const Variant &src, const string &escape_mode) ;
 
 namespace detail {
 
+void ContainerNode::throwException(const std::string &msg) {
+    stringstream strm ;
 
+    strm << msg << " while evaluating {% " << tagName() << " %} at " << root()->resource_ << '@' << line_ << '(' << column_ << ')' ;
+    throw TemplateRuntimeException(strm.str()) ;
+}
 
+void ContentNode::throwException(const std::string &msg) {
+    stringstream strm ;
+
+    strm << msg << " while evaluating substitution tag at " << root()->resource_ << '@' << line_ << '(' << column_ << ')' ;
+    throw TemplateRuntimeException(strm.str()) ;
+}
 
 Variant BooleanOperator::eval(Context &ctx) {
     switch ( op_ ) {
@@ -384,8 +395,7 @@ Variant RangeOperatorNode::eval(Context &ctx)
         }
         return res ;
     } else 
-            
-    throw TemplateRuntimeException("Invalid operands for range operator") ;
+        throw TemplateRuntimeException("Invalid operands for range operator") ;
 }
 
 Variant InvokeTestNode::eval(Context &ctx) {
@@ -497,9 +507,13 @@ void FilterBlockNode::eval(Context &ctx, string &res) {
     for( auto &&c: children_ )
         c->eval(ctx, block_res) ;
 
-    string result = evalFilter(name_, args_, block_res, ctx).toString() ;
+    try {
+        string result = evalFilter(name_, args_, block_res, ctx).toString() ;
+        res.append(result)  ;
+    } catch ( TemplateRuntimeException &e ) {
+        throwException(e.what()) ;
+    }
 
-    res.append(result)  ;
 }
 
 
@@ -542,7 +556,7 @@ std::string resolve_and_render_block(const std::string &name, DocumentNode *doc,
     }
         
     if ( target_block == nullptr ) 
-        throw TemplateRuntimeException("Template error: Block '" + name + "' is not defined in the template inheritance chain starting from file:" + doc->resource_ );
+        throw TemplateRuntimeException("Block '" + name + "' is not defined in the template inheritance chain starting from file:" + doc->resource_ );
 
     ctx.active_block_ = target_block;
         
@@ -562,7 +576,11 @@ void NamedBlockNode::eval(Context &ctx, string &res) {
             c->eval(ctx, res) ;
         }
     } else {
-        res.append(resolve_and_render_block(name_, ctx.root_tmpl_, ctx));
+        try {
+            res.append(resolve_and_render_block(name_, ctx.root_tmpl_, ctx));
+        } catch ( TemplateRuntimeException &e ) {
+            throwException(e.what()) ;
+        }
     }
 }
 
@@ -583,6 +601,15 @@ void DocumentNode::populateBlocks() {
     }
 }
 
+void ContainerNode::getAllBlocks(std::vector<NamedBlockNode *> &blocks) {
+    for( auto &c: children_ ) {
+        NamedBlockNode *n = dynamic_cast<NamedBlockNode *>(c.get()) ;
+        if ( n != nullptr ) blocks.push_back(n) ;
+        ContainerNode *cn = dynamic_cast<ContainerNode *>(c.get()) ;
+        if ( cn ) cn->getAllBlocks(blocks) ;
+    }
+}
+
 void DocumentNode::eval(Context &ctx, string &res) {
 
     // Build hierachy tree
@@ -600,7 +627,7 @@ void DocumentNode::eval(Context &ctx, string &res) {
 
     // run the children
 
-    ctx.root_tmpl_ = this ;
+    ctx.root_tmpl_ = ctx.root_tmpl_ ? ctx.root_tmpl_ : this ;
 
     for( auto &&e: tmpl->children_ )
         e->eval(ctx, res) ;
@@ -644,7 +671,11 @@ Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
     Context mctx(ctx.rdr_, {}) ;
     mctx.data_["_self"] = ctx.data_["_self"] ; 
 
-    mapArguments(args, mctx) ;
+    try {
+        mapArguments(args, mctx) ;
+    } catch ( TemplateRuntimeException &e ) {
+        throwException(e.what()) ;
+    }
 
     string out ;
 
@@ -665,7 +696,13 @@ void ImportBlockNode::eval(Context &ctx, string &res) {
 
         TemplateRenderer &rdr = ctx.rdr_ ;
 
-        doc = rdr.compile(resource) ;
+        try {
+            doc = rdr.compile(resource) ;
+        } catch ( TemplateCompileException &e ) {
+            throwException(e.what()) ;
+        } catch ( TemplateLoadException &e ) {
+            throwException(e.what()) ;
+        }
     }
 
     Context pctx(ctx) ;
@@ -749,7 +786,7 @@ void IncludeBlockNode::eval(Context &ctx, string &res)
 
         }
         catch ( TemplateCompileException &e ) {
-            throw e ;
+           throwException(e.what());
         }
 
     }
@@ -758,7 +795,7 @@ void IncludeBlockNode::eval(Context &ctx, string &res)
 
     if ( !doc ) {
         if ( !ignore_missing_ ) // non found
-            throw TemplateRuntimeException("Failed to load included template: " + templates[0]) ;
+            throwException("Failed to load included template: " + templates[0]) ;
         else
             return ;
     }
@@ -911,16 +948,16 @@ Variant TernaryOperatorNode::eval(Context &ctx) {
     else return false_expr_ ? false_expr_->eval(ctx) : Variant::null() ;
 }
 
-#if 1
+
 MatchesNode::MatchesNode(NodePtr lhs, const string &rx, bool positive): lhs_(lhs), positive_(positive) {
 
-    if ( rx.size() < 2 ) throw TemplateCompileException("empty regex string") ;
+    if ( rx.size() < 2 ) throw TemplateRuntimeException("empty regex string") ;
 
     char delimiter = rx[0];
 
     size_t end_delim_pos = rx.rfind(delimiter);
     if (end_delim_pos == 0 || end_delim_pos == std::string::npos) {
-        throw TemplateCompileException("unmatched delimiters in regex") ;
+        throw TemplateRuntimeException("unmatched delimiters in regex") ;
     }
 
     // 3. Extract the inner pattern and any trailing flags
@@ -936,10 +973,8 @@ MatchesNode::MatchesNode(NodePtr lhs, const string &rx, bool positive): lhs_(lhs
     }
 
     rx_.assign(pattern, regex_flags) ;
-
-
 }
-#endif
+
 Variant MatchesNode::eval(Context &ctx)
 {
     string val = lhs_->eval(ctx).toString() ;
@@ -963,13 +998,15 @@ void rtrim(std::string &s) {
 
 void SubstitutionBlockNode::eval(Context &ctx, string &res) {
 
-    string content = escape(expr_->eval(ctx), ctx.escape_mode_).toString() ;
-
-    res.append(content) ;
+    try {
+        string content = escape(expr_->eval(ctx), ctx.escape_mode_).toString() ;
+        res.append(content) ;
+    } catch ( TemplateRuntimeException &e ) {
+        throwException(e.what());
+    }
 }
 
-void AutoEscapeBlockNode::eval(Context &ctx, string &res)
-{
+void AutoEscapeBlockNode::eval(Context &ctx, string &res) {
     Context cctx(ctx) ;
     cctx.escape_mode_ = mode_ ;
     for( auto &&c: children_ )
@@ -990,27 +1027,26 @@ void EmbedBlockNode::eval(Context &ctx, string &res)
 
     // try to load one of the templates
 
-    DocumentNodePtr doc ;
+    DocumentNodePtr target_doc ;
 
     for( auto &&tmpl: templates ) {
         try {
-            doc = ctx.rdr_.compile(tmpl) ;
+            target_doc = ctx.rdr_.compile(tmpl) ;
             break ;
         }
-        catch ( TemplateLoadException & ) {
-
+        catch ( TemplateLoadException &e ) {
+                target_doc = nullptr ;
         }
         catch ( TemplateCompileException &e ) {
-            throw e ;
+            throwException(e.what()) ;
         }
-
     }
 
     // check whether not found
 
-    if ( !doc ) {
+    if ( !target_doc ) {
         if ( !ignore_missing_ ) // non found
-            throw TemplateRuntimeException("Failed to load included template: " + templates[0]) ;
+            throwException("Failed to load included template: " + templates[0]) ;
         else
             return ;
     }
@@ -1032,77 +1068,33 @@ void EmbedBlockNode::eval(Context &ctx, string &res)
 
     // create new context either inheriting parent one or empty and extend with key/values if any
 
+    Context cctx(ctx.rdr_, {});
+
     if ( only_flag_ ) {
         Context cctx(ctx.rdr_, {}) ;
-        cctx.data().insert(ctx_extension.begin(), ctx_extension.end()) ;
-
-        for( auto &&c: children_ ) {
-            NamedBlockNodePtr block = std::dynamic_pointer_cast<NamedBlockNode>(c) ;
-            if ( block )
-                cctx.addBlock(block) ;
-        }
-
-        doc->eval(cctx, res) ;
+        cctx.data().insert(ctx_extension.begin(), ctx_extension.end()) ;   
     } else {
-        Context cctx(ctx) ;
-
-
         for( auto &&e: ctx_extension )
             cctx.data()[e.first] = e.second ;
-
-
-        for( auto &&c: children_ ) {
-            NamedBlockNodePtr block = std::dynamic_pointer_cast<NamedBlockNode>(c) ;
-            if ( block )
-                cctx.addBlock(block) ;
-        }
-
-        doc->eval(cctx, res) ;
     }
+
+    DocumentNode * this_doc = root() ;
+    vector<NamedBlockNode *> this_doc_blocks ;
+    getAllBlocks(this_doc_blocks) ;
+
+    DocumentNodePtr virtual_child(new DocumentNode()) ;
+    virtual_child->resource_ = root()->resource_ ;
+    virtual_child->setParentTemplate(target_doc);
+   
+    for( auto block_node: this_doc_blocks ) {
+        virtual_child->blocks_.emplace(block_node->name_, block_node ) ;
+        block_node->parent_ = virtual_child.get() ;
+    }
+
+    cctx.root_tmpl_ = virtual_child.get() ;
+    target_doc->eval(cctx, res);
 
 }
-
-#if 0
- // Guard: Throw an exception if none of the templates exist in the filesystem
-    if (!target_doc) {
-        std::string attempted = "";
-        for (const auto& p : paths_to_try) attempted += "'" + p + "' ";
-        throw TemplateRuntimeException("Embed error: None of the target templates could be loaded: " + attempted);
-    }
-
-    // 3. Setup a lightweight "Virtual Child" layer to hold our block overrides
-    auto virtual_child = std::make_unique<DocumentNode>();
-    virtual_child->template_path = ctx.current_executing_template ? ctx.current_executing_template->template_path : "embed_context";
-    
-    // Link our virtual file directly to the top of the discovered embedded template
-    virtual_child->parent_template = target_doc; 
-    virtual_child->local_blocks = this->embed_overrides; 
-
-    // Update block ownership pointers so parent() works relative to this virtual layer
-    for (auto& [name, block_node] : this->embed_overrides) {
-        const_cast<BlockDefinitionNode*>(block_node)->owning_template = virtual_child.get();
-    }
-
-    // 4. Create an isolated sub-render context pass by copying ctx by value
-    RenderContext embed_ctx = ctx;
-    
-    // Lock the leaf template variable exclusively to our new virtual child layout.
-    // This forces block lookups inside the embed pipeline to search our overrides first!
-    embed_ctx.leaf_template = virtual_child.get();
-
-    // 5. Climb straight to the absolute highest root parent file of the embedded template
-    const DocumentNode* root_template = target_doc.get();
-    while (root_template->parent_template != nullptr) {
-        root_template = root_template->parent_template.get();
-    }
-
-    // 6. Force evaluation to start from the embedded template's root down to the output stream
-    std::string embed_output = "";
-    for (const auto& node : root_template->local_nodes) {
-        embed_output += node->eval(embed_ctx);
-    }
-
-#endif
 
 } // detail
 

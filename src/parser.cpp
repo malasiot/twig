@@ -76,7 +76,7 @@ bool Parser::decodeUnicode(uint &cp)
 }
 
 void Parser::throwException(const string msg) {
-    throw ParseException(msg, pos_.line_, pos_.column_) ;
+    throw ParseException(msg, pos_.line_, pos_.column_, root_->resource_) ;
 }
 
 bool Parser::expect(char c) {
@@ -393,26 +393,39 @@ void  Parser::parseControlTag() {
         if ( expect('-' ))
             trimWhiteAfter() ;
 
-        if ( !expect("%}") )
-            throwException("Tag not closed while parsing block") ;
+        if ( !expect("%}") ) {
+            string msg = "unexpected character '" ;
+            msg.push_back(*pos_) ;
+            msg.push_back('\'');
+            throwException(msg) ;
+        }
     }
 }
 
 bool Parser::parseControlTagDeclaration() {
-    bool is_embed = false, is_include = false, consumed = false ;
-    if ( expect("block") ) {
+    bool consumed = false ;
+
+    Position saved = pos_ ;
+
+    string tag_name ;
+    if ( !parseName(tag_name) ) {
+        throwException("tag name expected");
+    }
+
+    if ( tag_name == "block" ) {
         string name ;
         if ( !parseName(name) )
             throwException("Expected name") ;
 
         auto n = std::make_shared<NamedBlockNode>(name) ;
+        n->setLineAndColumn(saved.line_, saved.column_) ;
         addNode(n) ;
         pushControlBlock(n) ;
-    } else if ( expect("endblock") ) {
+    } else if ( tag_name == "endblock" ) {
         string name ;
         parseName(name) ;
         popControlBlock("block") ;
-    } else if ( expect("for") ) {
+    } else if ( tag_name == "for" ) {
         identifier_list_t ids ;
         if ( !parseNameList(ids) )
             throwException("identifier list expected in for loop") ;
@@ -428,31 +441,33 @@ bool Parser::parseControlTagDeclaration() {
             c = parseExpression() ;
 
         auto n = make_shared<ForLoopBlockNode>(std::move(ids), e, c);
+        n->setLineAndColumn(saved.line_, saved.column_) ;
         addNode(n) ;
         pushControlBlock(n) ;
-    } else if ( expect("endfor") ) {
+    } else if ( tag_name == "endfor" ) {
         popControlBlock("for") ;
-    } else if ( expect("else") ) {
+    } else if ( tag_name == "else" ) {
         if ( ForLoopBlockNode *p = dynamic_cast<ForLoopBlockNode *>(stack_.back().get()) )
             p->startElseBlock() ;
         else if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
             p->addBlock(nullptr) ;
-    } else if ( expect("elif") ) {
+    } else if ( tag_name == "elif" ) {
         auto e = parseExpression() ;
         if ( !e )
             throwException("expecting conditional expression") ;
         if ( IfBlockNode *p = dynamic_cast<IfBlockNode *>(stack_.back().get()) )
             p->addBlock(e) ;
-    } else if ( expect("endif") ) {
+    } else if ( tag_name == "endif" ) {
         popControlBlock("if") ;
-    } else if ( expect("if") ) {
+    } else if ( tag_name == "if" ) {
         auto e = parseExpression() ;
         if ( !e )
             throwException("expecting conditional expression") ;
         auto n = make_shared<IfBlockNode>(e);
+        n->setLineAndColumn(saved.line_, saved.column_) ;
         addNode(n) ;
         pushControlBlock(n) ;
-    } else if ( expect("filter") ) {
+    } else if ( tag_name == "filter" ) {
         string name ;
         arg_list_t args ;
         
@@ -465,17 +480,22 @@ bool Parser::parseControlTagDeclaration() {
         } else throwException("filter name expected") ;
 
         auto n = ContainerNodePtr(new FilterBlockNode(name, std::move(args))) ;
+        n->setLineAndColumn(saved.line_, saved.column_) ;
+
         addNode(n) ;
         pushControlBlock(n) ;
-    }  else if ( expect("endfilter") ) {
+    }  else if ( tag_name == "endfilter" ) {
         popControlBlock("filter") ;
-    } else if ( expect("extends") ) {
+    } else if ( tag_name == "extends" ) {
         auto e = parseExpression() ;
         if ( !e )
             throwException("expecting expression") ;
+        
         auto n = make_shared<ExtensionBlockNode>(e);
+        n->setLineAndColumn(saved.line_, saved.column_) ;
+
         root_->addChild(n);
-    }  else if ( expect("macro") ) {
+    }  else if ( tag_name == "macro" ) {
         string name ;
         if ( parseName(name) ) {
             if ( expect('(') ) {
@@ -483,15 +503,18 @@ bool Parser::parseControlTagDeclaration() {
                 parseMacroArgList(args) ;
                 if ( !expect(')') )
                     throwException("No closing parenthesis") ;
+
                 auto n = make_shared<MacroBlockNode>(name, std::move(args));
+                n->setLineAndColumn(saved.line_, saved.column_) ;
+
                 addNode(n) ;
                 pushControlBlock(n) ;
                 addMacroBlock(name, n) ;
             }
         } else throwException("macro name expected") ;
-    } else if ( expect("endmacro") ) {
+    } else if ( tag_name == "endmacro" ) {
         popControlBlock("macro") ;
-    } else if ( expect("import") ) {
+    } else if ( tag_name == "import" ) {
         NodePtr e ;
         if ( expect("self") )
             e = nullptr ;
@@ -505,12 +528,14 @@ bool Parser::parseControlTagDeclaration() {
             string name ;
             if ( parseName(name) ) {
                 auto n = make_shared<ImportBlockNode>(e, name);
+                n->setLineAndColumn(saved.line_, saved.column_) ;
+
                 addNode(n) ;
                 pushControlBlock(n) ;
              }
         } else throwException("name expected") ;
 
-    } else if ( expect("from") ) {
+    } else if ( tag_name == "from" ) {
         NodePtr e = parseFilterExpression() ;
         if ( !e )
             throwException("expected expression") ;
@@ -519,13 +544,15 @@ bool Parser::parseControlTagDeclaration() {
             key_alias_list_t imports ;
             if ( parseImportList(imports) ) {
                 auto n = make_shared<ImportBlockNode>(e, std::move(imports));
+                n->setLineAndColumn(saved.line_, saved.column_) ;
+
                 addNode(n) ;
                 pushControlBlock(n) ;
              }
         } else throwException("import definition expected") ;
-    } else if ( expect("endimport") ) {
+    } else if ( tag_name == "endimport" ) {
         popControlBlock("import") ;
-    } else if ( ( is_embed = expect("embed") )|| ( is_include = expect("include") ) ) {
+    } else if ( tag_name == "embed" || tag_name == "include" ) {
         auto e = parseExpression() ;
         if ( !e ) throwException("expected expression") ;
         bool ignore_missing = false, with_only = false ;
@@ -538,50 +565,61 @@ bool Parser::parseControlTagDeclaration() {
         if ( expect("only"))
             with_only = true ;
 
-        if ( is_embed ) {
+        if ( tag_name == "embed" ) {
             auto n = make_shared<EmbedBlockNode>(e, ignore_missing, w, with_only) ;
+            n->setLineAndColumn(saved.line_, saved.column_) ;
+
             addNode(n) ;
             pushControlBlock(n) ;
         }
         else {
             auto n = make_shared<IncludeBlockNode>(e, ignore_missing, w, with_only) ;
+            n->setLineAndColumn(saved.line_, saved.column_) ;
+
             addNode(n) ;
         }
-    } else if ( expect("endembed") ) {
+    } else if ( tag_name == "endembed" ) {
         popControlBlock("embed") ;
-    }  else if ( expect("endinclude") ) {
+    }  else if ( tag_name == "endinclude" ) {
         popControlBlock("include") ;
-    } else if ( expect("autoescape") ) {
+    } else if ( tag_name == "autoescape" ) {
         string mode = "html";
         if ( expect("false") )
             mode = "no" ;
         else if ( parseString(mode)) ;
         auto n = make_shared<AutoEscapeBlockNode>(mode) ;
+        n->setLineAndColumn(saved.line_, saved.column_) ;
+
         addNode(n) ;
         pushControlBlock(n) ;
-    } else if ( expect("endautoescape") ) {
+    } else if ( tag_name == "endautoescape" ) {
         popControlBlock("autoescape") ;
-    } else if ( expect("apply") ) {
+    } else if ( tag_name == "apply" ) {
         std::vector<FilterNodePtr> filters ;
         if ( parseFilterChain(filters) ) {
             auto n = make_shared<ApplyBlockNode>(filters) ;
+            n->setLineAndColumn(saved.line_, saved.column_) ;
+
             addNode(n) ;
             pushControlBlock(n) ;
         } else throwException("expected filter");
-    } else if ( expect("verbatim") ) {
+    } else if ( tag_name == "verbatim" ) {
         if ( expect("%}")){
             string content ;
             consume("endverbatim", content) ;
+            
             auto n = make_shared<VerbatimBlockNode>(content) ;
+            n->setLineAndColumn(saved.line_, saved.column_) ;
+
             addNode(n) ;
             pushControlBlock(n) ;
             consumed = true ;
         }
     } 
-    else if ( expect("endapply") ) {
+    else if ( tag_name == "endapply" ) {
         popControlBlock("apply") ;
     }
-    else if ( expect("set") ) {
+    else if ( tag_name == "set" ) {
         identifier_list_t names ;
         std::vector<NodePtr> values ;
         if ( !parseNameList(names) ) 
@@ -596,23 +634,23 @@ bool Parser::parseControlTagDeclaration() {
             throwException("a single variable is expected") ;
         
         auto n = make_shared<AssignmentBlockNode>(names, values) ;
+        n->setLineAndColumn(saved.line_, saved.column_) ;
+
         addNode(n) ;
         pushControlBlock(n) ;
         
-    }  else if ( expect("endset") ) {
+    }  else if ( tag_name == "endset" ) {
        popControlBlock("set") ; 
-    } else if ( expect("ref") ) {
-        string name ;
-        if ( !parseName(name) ) 
-            throwException("name expected after ref tag") ;
-        auto n = make_shared<RefBlockNode>(name) ;
-        addNode(n) ;
+    } 
+    else {
+        throwException("unsupported tag '" + tag_name + "'") ;
     } 
 
     return consumed ;
 }
 
 void Parser::parseSubstitutionTag() {
+    Position saved = pos_ ;
     if ( expect('-') )
         trimWhiteBefore();
 
@@ -624,10 +662,15 @@ void Parser::parseSubstitutionTag() {
     if ( expect('-') )
         trim_after = true ;
 
-    if ( !expect("}}") )
-        throwException("Tag not closed while parsing substitution tag") ;
+    if ( !expect("}}") ) {
+        string msg = "unexpected character '" ;
+        msg.push_back(*pos_) ;
+        msg.push_back('\'');
+        throwException(msg) ;
+    }
 
     auto n = make_shared<SubstitutionBlockNode>(expr) ;
+    n->setLineAndColumn(saved.line_, saved.column_-1);
 
     addNode(n) ;
 
@@ -776,7 +819,7 @@ NodePtr Parser::parseLambda() {
              auto body = parseTernary() ;
 
             if ( !body )
-                throwException("expected expression in lambda body") ;
+                throwException("expected expression after => in '" + name + "' lambda") ;
 
             return NodePtr(new LambdaNode(std::move(args), body)) ;
         }
@@ -793,7 +836,7 @@ NodePtr Parser::parseLambda() {
                 auto body = parseTernary() ;
 
                 if ( !body )
-                    throwException("expected expression in lambda body") ;
+                    throwException("expected expression after => in '" + name + "' lambda") ;
 
                 return NodePtr(new LambdaNode(std::move(args), body)) ;
             }
@@ -1007,7 +1050,7 @@ NodePtr Parser::parseAddSub()
         if (expect('+')) {
             auto rhs = parseMulDiv();
             if (rhs)
-                return NodePtr(new BinaryOperator("+", lhs, rhs));
+                lhs = NodePtr(new BinaryOperator("+", lhs, rhs));
             else
                 throwException("expecting expression after '+' in addition operator");
         }
@@ -1020,7 +1063,7 @@ NodePtr Parser::parseAddSub()
         else if (expect('-')) {
             auto rhs = parseMulDiv();
             if (rhs)
-                return NodePtr(new BinaryOperator("-", lhs, rhs));
+                lhs = NodePtr(new BinaryOperator("-", lhs, rhs));
             else
                 throwException("expecting expression after '-' in subtraction operator");
         }
@@ -1155,9 +1198,9 @@ NodePtr Parser::parseArray() {
 bool Parser::parseKeyValuePair(string &key, NodePtr &val) {
     key.clear() ;
     if ( !parseName(key) && !parseString(key) ) return false ;
-    if ( !expect(":") ) throwException("expected ':'") ;
+    if ( !expect(":") ) throwException("expected ':' while parsing key/value pair") ;
     val = parseExpression() ;
-    if ( !val ) throwException("expected expression") ;
+    if ( !val ) throwException("expected expression while parsing key/value pair") ;
     return true ;
 }
 
@@ -1353,7 +1396,7 @@ void Parser::popControlBlock(const char *tag_name) {
         } else if ( !(*it)->shouldClose() ) {
             ++it ; stack_.pop_back() ;
         }
-        else throwException("unmatched tag")  ;
+        else throwException("unmatched tag " + std::string(tag_name))  ;
     }
 }
 
@@ -1366,7 +1409,7 @@ void Parser::trimWhiteBefore()
     if ( RawTextNode *p = dynamic_cast<RawTextNode *>(current_.get()) ) {
         rtrim(p->text_) ;
         if ( p->text_.empty() ) { // erase child
-                stack_.back()->children_.pop_back() ;
+            stack_.back()->children_.pop_back() ;
         }
     }
 }

@@ -352,15 +352,22 @@ public:
         return reinterpret_cast<DocumentNode *>(node) ;
     }
 
+    void setLineAndColumn(int line, int col) {
+        line_ = line ;
+        column_ = col ;
+    }
+
     void setTrimLeft(bool s) { trim_left_ = s ; }
     void setTrimRight(bool s) { trim_right_ = s ; }
 
+    virtual void throwException(const std::string &msg) ;
+
     ContentNode *parent_ = nullptr ;
     bool trim_left_ = false, trim_right_ = false ;
+    int line_, column_ ;
 };
 
 typedef std::shared_ptr<ContentNode> ContentNodePtr ;
-
 
 class ContainerNode: public ContentNode {
 public:
@@ -370,7 +377,11 @@ public:
         child->parent_ = this ;
     }
 
+    void getAllBlocks(std::vector<NamedBlockNode *> &blocks) ;
+
     NamedBlockNode *findBlock(const std::string &name) ;
+
+    void throwException(const std::string &msg) override ;
 
     virtual std::string tagName() const { return {} ; }
     virtual bool shouldClose() const { return true ; }
@@ -650,6 +661,8 @@ public:
         expr_(expr) {}
 
     void eval(Context &ctx, std::string &res) override;
+
+   
 
     NodePtr expr_ ;
 

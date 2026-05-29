@@ -42,6 +42,23 @@ TEST_F(TagTest, ForBlockArray) {
    
 }
 
+TEST_F(TagTest, Filter) {
+  TemplateRenderer rdr(nullptr) ;
+
+  const string code  =  R"({% filter upper %}text{% endfilter %})";
+ 
+    try {
+        string output =  rdr.renderString(code, {}) ;
+        EXPECT_STREQ(output.c_str(), "TEXT") ;
+      
+//        output =  rdr.renderString(loop1, {}) ;
+ //       EXPECT_STREQ(output.c_str(), "No users have been found.") ;
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+   
+}
+
 TEST_F(TagTest, Trim) {
   TemplateRenderer rdr(nullptr) ;
 
@@ -245,72 +262,38 @@ TEST_F(TagTest, IncludeBlock) {
         FAIL() << "Compilation failed: " << e.what() ;
     }
 };
-#if 0
-twig<main>
-    {% embed "card.twig" %}
-        {% block card_body %}
-            <p>This is overridden body content.</p>
-        {% endblock %}
-    {% endembed %}
-</main>
-Use code with caution.card.twig (The Embedded Component)twig<div class="card">
-    <div class="card-header">{% block card_header %}Default Header{% endblock %}</div>
-    <div class="card-body">{% block card_body %}Default Body Content{% endblock %}</div>
-</div>
-Use code with caution.Expected String Output:html<main>
-<div class="card">
-    <div class="card-header">Default Header</div>
-    <div class="card-body">
-            <p>This is overridden body content.</p>
-        </div>
-</div>
-</main>
 
 
+TEST_F(TagTest, EmbedBlock) {
 
-twig<div>
-    {% embed ["custom/modal.twig", "core/modal.twig"] %}
-        {% block modal_title %}Warning{% endblock %}
-    {% endembed %}
-</div>
-Use code with caution.(Assumes custom/modal.twig does not exist on disk, forcing the engine to fallback to the core file).core/modal.twig (The Fallback Component)twig<div class="modal">
-    <h2>{% block modal_title %}Default Title{% endblock %}</h2>
-    <p>Modal Content</p>
-</div>
-Use code with caution.Expected String Output:html<div>
-    <div class="modal">
-    <h2>Warning</h2>
-    <p>Modal Content</p>
-</div>
-</div>
-
-
-page.twig (The Main Page)twig{% embed "alert.twig" %}
-    {% block alert_content %}
-        <strong>Error:</strong> {{ parent() }}
-    {% endblock %}
-{% endembed %}
-Use code with caution.alert.twig (The Embedded Component)twig<div class="alert">
-    {% block alert_content %}Something went wrong!{% endblock %}
-</div>
-Use code with caution.Expected String Output:html<div class="alert">
+    std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
+        {"main1.twig", R"(<main>{% embed "card.twig" %}{% block card_body %}<p>This is overridden body content.</p>{% endblock %}{% endembed %}</main>)"},
+        {"card.twig", R"(<div class="card"><div class="card-header">{% block card_header %}Default Header{% endblock %}</div><div class="card-body">{% block card_body %}Default Body Content{% endblock %}</div></div>)"},
+        {"main2.twig", R"(<div>{% embed ["custom/modal.twig", "core/modal.twig"] %}{% block modal_title %}Warning{% endblock %}{% endembed %}</div>)"},
+        {"core/modal.twig", R"(<div class="modal"><h2>{% block modal_title %}Default Title{% endblock %}</h2><p>Modal Content</p></div>)"},
+        {"page.twig", R"({% embed "alert.twig" %}{% block alert_content %}<strong>Error:</strong>{{ parent() }}{% endblock %}{% endembed %})"},
+        {"alert.twig", R"(<div class="alert">{% block alert_content %}Something went wrong!{% endblock %}</div>)"},
+        {"page2.twig", R"({% embed "advanced_input.twig" %}{% block label %}Username:{% endblock %}{% endembed %})"},
+        {"advanced_input.twig", R"({% extends "base_field.twig" %}{% block input_element %}<input type="text">{% endblock %})"},
+        {"base_field.twig", R"(<div class="field"><label>{% block label %}Default Label{% endblock %}</label><div class="control">{% block input_element %}{% endblock %}</div></div>)"},
     
-        <strong>Error:</strong> Something went wrong!
+    })) ;
+    TemplateRenderer rdr(loader) ;
+   
+    try {
+        string output = rdr.render("main1.twig", {});
+        EXPECT_STREQ(output.c_str(), R"(<main><div class="card"><div class="card-header">Default Header</div><div class="card-body"><p>This is overridden body content.</p></div></div></main>)") ;           
+
+        output = rdr.render("main2.twig", {});
+        EXPECT_STREQ(output.c_str(), R"(<div><div class="modal"><h2>Warning</h2><p>Modal Content</p></div></div>)") ;           
     
-</div>
-
-page.twig (The Main Page)twig{% embed "advanced_input.twig" %}
-    {% block label %}Username:{% endblock %}
-{% endembed %}
-Use code with caution.advanced_input.twig (The Embedded File)twig{% extends "base_field.twig" %}
-{% block input_element %}<input type="text">{% endblock %}
-Use code with caution.base_field.twig (The Embedded File's Parent)twig<div class="field">
-    <label>{% block label %}Default Label{% endblock %}</label>
-    <div class="control">{% block input_element %}{% endblock %}</div>
-</div>
-Use code with caution.Expected String Output:html<div class="field">
-    <label>Username:</label>
-    <div class="control"><input type="text"></div>
-</div>
-
-#endif
+        output = rdr.render("page.twig", {});
+        EXPECT_STREQ(output.c_str(), R"(<div class="alert"><strong>Error:</strong>Something went wrong!</div>)") ;           
+    
+        output = rdr.render("page2.twig", {});
+        EXPECT_STREQ(output.c_str(), R"(<div class="field"><label>Username:</label><div class="control"><input type="text"></div></div>)") ;           
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+};
