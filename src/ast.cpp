@@ -430,7 +430,7 @@ Variant InvokeTestNode::eval(Context &ctx) {
     return ( positive_ ) ? res : !res ;
 }
 
-void ForLoopBlockNode::eval(Context &ctx, string &res) const
+void ForLoopBlockNode::eval(Context &ctx, string &res)
 {
     uint counter = 0 ;
     Variant target = target_->eval(ctx) ;
@@ -479,7 +479,7 @@ void ForLoopBlockNode::eval(Context &ctx, string &res) const
     }
 }
 
-void IfBlockNode::eval(Context &ctx, string &res) const
+void IfBlockNode::eval(Context &ctx, string &res)
 {
     for( const Block &b: blocks_ ) {
         int c_start = b.cstart_ ;
@@ -501,7 +501,7 @@ Variant TernaryExpressionNode::eval(Context &ctx)
     else return negative_ ? negative_->eval(ctx) : Variant::null() ;
 }
 */
-void AssignmentBlockNode::eval(Context &ctx, string &res) const {
+void AssignmentBlockNode::eval(Context &ctx, string &res) {
     if ( names_.size() == 1 && values_.empty() ) { // block assignment
         string subres ;
         for( auto &&c: children_ ) {
@@ -522,7 +522,7 @@ void AssignmentBlockNode::eval(Context &ctx, string &res) const {
 }
 
 
-void ApplyBlockNode::eval(Context &ctx, string &res) const {
+void ApplyBlockNode::eval(Context &ctx, string &res) {
 // render block content
     string block_res ;
     for( auto &&c: children_ )
@@ -532,7 +532,7 @@ void ApplyBlockNode::eval(Context &ctx, string &res) const {
     res.append(v.toString());
 }
 
-void FilterBlockNode::eval(Context &ctx, string &res) const
+void FilterBlockNode::eval(Context &ctx, string &res) 
 {
     string block_res ;
     for( auto &&c: children_ )
@@ -580,22 +580,47 @@ Variant InvokeFunctionNode::eval(Context &ctx)
         throw TemplateRuntimeException("function invocation of non-callable variable") ;*/
 }
 
-const NamedBlockNode *ContainerNode::findBlock(const std::string &name) const {
-    const NamedBlockNode *n ;
-    if ( ( n = dynamic_cast<const NamedBlockNode *>(this) ) != nullptr && n->name_ == name )
-        return n ;
-    for( auto c: children_ ) {
-        ContainerNode *cn = dynamic_cast<ContainerNode *>(c.get()) ;
-        if ( cn ) {
-            n = cn->findBlock(name) ;
-            if ( n ) return n ;
+ NamedBlockNode *DocumentNode::findBlock(const std::string &name) {
+    auto it = blocks_.find(name) ;
+    if ( it == blocks_.end() ) return nullptr ;
+    else return it->second ;
+ }
+
+std::string resolve_and_render_block(const std::string &name, DocumentNode *doc, Context &ctx) {
+    NamedBlockNode* target_block = nullptr;
+    DocumentNode *root = doc ;
+
+    while ( root ) {
+        target_block = root->findBlock(name) ;
+        if ( target_block != nullptr ) break ;
+        root = root->parent_.get() ;
+    }
+        
+    if ( target_block == nullptr ) 
+        throw TemplateRuntimeException("Template error: Block '" + name + "' is not defined in the template inheritance chain starting from file:" + doc->resource_ );
+
+    ctx.active_block_ = target_block;
+        
+    string res ;
+    for( auto &&c: target_block->children_ ) {
+        c->eval(ctx, res) ;
+    }
+    return res ;
+ }
+
+void NamedBlockNode::eval(Context &ctx, string &res) {
+
+    DocumentNode *doc = ctx.root_tmpl_ ;
+
+    if ( !doc->isChild() ) {
+        for( auto &&c: children_ ) {
+            c->eval(ctx, res) ;
         }
+    } else {
+        res.append(resolve_and_render_block(name_, ctx.root_tmpl_, ctx));
     }
 
-    return nullptr ;
-}
-
-void NamedBlockNode::eval(Context &ctx, string &res) const {
+/*
     auto it = ctx.blocks_.find(name_) ;
     if ( it != ctx.blocks_.end() ) {
         Context cctx(ctx) ;
@@ -615,44 +640,59 @@ void NamedBlockNode::eval(Context &ctx, string &res) const {
         for( auto &&c: children_ ) {
             c->eval(ctx, res) ;
         }
-    }
+    }*/
 
 }
 
-void RefBlockNode::eval(Context &ctx, string &res) const {
+void RefBlockNode::eval(Context &ctx, string &res) {
 
-    const DocumentNode *r = root() ;
+    DocumentNode *r = root() ;
 
-    const NamedBlockNode *n = r->findBlock(name_) ;
+    NamedBlockNode *n = r->findBlock(name_) ;
 
     if ( n ) n->eval(ctx, res) ;
 }
 
+void DocumentNode::populateBlocks() {
+    for( const auto &c: children_ ) {
+        NamedBlockNode *n = dynamic_cast<NamedBlockNode *>(c.get()) ;
+        if ( n != nullptr )
+            blocks_.emplace(n->name_, n) ;
+    }
+}
 
-void ExtensionBlockNode::eval(Context &ctx, string &res) const
-{
-    string resource = parent_resource_->eval(ctx).toString() ;
+void DocumentNode::eval(Context &ctx, string &res) {
 
+    // Build hierachy tree
+    ExtensionBlockNode *pen = findExtensionNode() ;
+    DocumentNode *tmpl = this, *root_template = this ;
     TemplateRenderer &rdr = ctx.rdr_ ;
 
-    auto parent = rdr.compile(resource) ;
-
-    Context pctx(ctx) ;
-
-    // fill context with block definitions
-
-    for( auto &&c: children_ ) {
-        NamedBlockNodePtr block = std::dynamic_pointer_cast<NamedBlockNode>(c) ;
-        if ( block )
-            pctx.addBlock(block) ;
+    while ( pen != nullptr ) {    
+        string resource = pen->parent_resource_->eval(ctx).toString() ;
+        auto parent = rdr.compile(resource) ;
+        tmpl->setParentTemplate(parent) ;
+        pen = parent->findExtensionNode() ;
+        tmpl = parent.get() ;
     }
 
-    parent->eval(pctx, res) ;
+    // run the children
+
+    ctx.root_tmpl_ = this ;
+
+    for( auto &&e: tmpl->children_ )
+        e->eval(ctx, res) ;
+
+}
+
+void ExtensionBlockNode::eval(Context &ctx, string &res)
+{
+
 }
 
 
 
-void MacroBlockNode::eval(Context &ctx, string &str) const
+void MacroBlockNode::eval(Context &ctx, string &str)
 {
 
 }
@@ -681,40 +721,11 @@ void MacroBlockNode::mapArguments(const Variant &args, Context &ctx)
         }
         ctx.data()[arg_name] = std::move(v) ;
     }
-    /*
-    uint n_args = args_.size() ;
-
-    const Variant &pos_args = args["args"] ;
-
-    for ( uint pos = 0 ; pos < n_args && pos < pos_args.length() ; pos ++ )  {
-        const string &arg_name = args_[pos].first ;
-
-        Variant v = pos_args.at(pos) ;
-        ctx.data()[arg_name] = std::move(v) ;
-    }
-
-    const Variant &kw_args = args["kw"] ;
-
-    for ( auto it = kw_args.begin() ; it != kw_args.end() ; ++it ) {
-        string key = it.key() ;
-        const Variant &val = it.value() ;
-
-        for( uint k=0 ; k<n_args ; k++ ) {
-            const string &arg_name = args_[k].first ;
-
-            if ( key == arg_name )
-                ctx.data()[arg_name] = val ;
-        }
-    }
-
-    // store arguments in context
-    ctx.data()["_args_"] = pos_args ;
-    ctx.data()["_kw_"] = kw_args ;*/
 }
 
 Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
 
-    Context mctx(ctx.rdr_, {}) ;
+    Context mctx(ctx) ;
 
     mapArguments(args, mctx) ;
 
@@ -727,11 +738,9 @@ Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
     return Variant(out, true) ; // macros should return safe strings
 }
 
-void ImportBlockNode::eval(Context &ctx, string &res) const
+void ImportBlockNode::eval(Context &ctx, string &res)
 {
     DocumentNodePtr doc ;
-
-    // if _self was provided then source should be null
 
     if ( source_ ) {
         string resource = source_->eval(ctx).toString() ;
@@ -746,21 +755,23 @@ void ImportBlockNode::eval(Context &ctx, string &res) const
     // create closures corresponding to each macro and add them to the namespace variable
     // of the current context
 
-    Variant::Object closures ;
+    Variant::Object closures, all_macros ;
 
     for( auto &&m: (doc) ? doc->macro_blocks_ : root()->macro_blocks_ ) {
 
         std::shared_ptr<MacroBlockNode> p_macro = std::dynamic_pointer_cast<MacroBlockNode>(m.second) ;
         if ( p_macro ) {
 
-            string mapped_name ;
-            if ( !mapMacro(*p_macro, mapped_name) ) continue ; // if not imported
-
-            auto macro_fn = [&ctx, p_macro](const Variant &args) -> Variant {
-                return p_macro->call(ctx, args) ;
+             auto macro_fn = [&pctx, p_macro](const Variant &args) -> Variant {
+                Context lctx(pctx) ;
+                return p_macro->call(lctx, args) ;
             };
 
-            closures.insert({mapped_name, Variant::Function(macro_fn)}) ;
+            string mapped_name ;
+            if ( mapMacro(*p_macro, mapped_name) ) 
+                closures.insert({mapped_name, Variant::Function(macro_fn)}) ;
+
+            all_macros.insert({p_macro->name_, Variant::Function(macro_fn)}) ;
         }
     }
 
@@ -770,6 +781,8 @@ void ImportBlockNode::eval(Context &ctx, string &res) const
             pctx.data()[e.first] = e.second ;
         }
     }
+
+    pctx.data_["_self"] =all_macros ;
 
     for( auto &&c: children_ ) {
         c->eval(pctx, res) ;
@@ -792,7 +805,7 @@ bool ImportBlockNode::mapMacro(MacroBlockNode &n, string &name) const {
     return true ;
 }
 
-void IncludeBlockNode::eval(Context &ctx, string &res) const
+void IncludeBlockNode::eval(Context &ctx, string &res)
 {
     // get the list of templates that we are going to check
 
@@ -863,7 +876,7 @@ void IncludeBlockNode::eval(Context &ctx, string &res) const
     }
 }
 
-void FormThemeBlockNode::eval(Context &ctx, string &res) const
+void FormThemeBlockNode::eval(Context &ctx, string &res)
 {
     std::string form_id = name_; 
 
@@ -894,7 +907,7 @@ void FormThemeBlockNode::eval(Context &ctx, string &res) const
 }
 
 
-void WithBlockNode::eval(Context &ctx, string &res) const
+void WithBlockNode::eval(Context &ctx, string &res)
 {
     Variant::Object ctx_extension ;
 
@@ -1063,14 +1076,14 @@ void rtrim(std::string &s) {
     }).base(), s.end());
 }
 
-void SubstitutionBlockNode::eval(Context &ctx, string &res) const {
+void SubstitutionBlockNode::eval(Context &ctx, string &res) {
 
     string content = escape(expr_->eval(ctx), ctx.escape_mode_).toString() ;
 
     res.append(content) ;
 }
 
-void AutoEscapeBlockNode::eval(Context &ctx, string &res) const
+void AutoEscapeBlockNode::eval(Context &ctx, string &res)
 {
     Context cctx(ctx) ;
     cctx.escape_mode_ = mode_ ;
@@ -1078,7 +1091,7 @@ void AutoEscapeBlockNode::eval(Context &ctx, string &res) const
         c->eval(cctx, res) ;
 }
 
-void EmbedBlockNode::eval(Context &ctx, string &res) const
+void EmbedBlockNode::eval(Context &ctx, string &res)
 {
     vector<string> templates ;
     Variant source = source_->eval(ctx) ;
@@ -1169,7 +1182,7 @@ void EmbedBlockNode::eval(Context &ctx, string &res) const
 
 
 void Context::addBlock(detail::NamedBlockNodePtr node) {
-    blocks_.emplace(node->name_, node) ;
+ //   blocks_.emplace(node->name_, node) ;
 }
 
 }

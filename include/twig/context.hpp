@@ -44,10 +44,10 @@ public:
 
     Variant::Object data_ ;
 
-
-    std::map<std::string, detail::NamedBlockNodePtr> blocks_ ;
     TemplateRenderer &rdr_ ;
     std::string escape_mode_ = "no";
+    detail::DocumentNode *root_tmpl_ = nullptr ;
+    detail::NamedBlockNode *active_block_  = nullptr;
     std::unordered_map<std::string, detail::DocumentNodePtr> themes_ ; 
     std::unordered_map<std::string, std::vector<std::string>> form_to_themes_map_;
     std::unordered_map<std::string, bool> form_blocks_globals_ ;

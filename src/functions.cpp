@@ -113,7 +113,7 @@ static Variant _join(const Variant &target, const Variant &args, Context &ctx) {
 
     bool is_first = true ;
     string res ;
-    for( auto &i: target ) {
+    for( const auto &i: target ) {
         if ( !is_first ) res.append(sep) ;
         if ( !key.empty() )
             res.append(i.at(key).toString()) ;
@@ -525,23 +525,41 @@ static Variant include(const Variant &args, Context &ctx) {
 
     return ctx.rdr_.render(unpacked[0].toString(), variables, ignore_missing) ;
 }
-/*
+namespace detail {
+extern std::string resolve_and_render_block(const std::string &name, detail::DocumentNode *doc, Context &ctx) ;
+}
+static Variant parent(const Variant &args, Context &ctx) {
+
+    if ( ctx.active_block_ == nullptr ) return Variant::undefined() ;
+
+    detail::DocumentNode* current_block_owner = ctx.active_block_->root();
+
+    // Guard: If there is no parent template above this layer, parent() does nothing
+    if ( !current_block_owner || current_block_owner->parent_ == nullptr) {
+        return Variant::undefined();
+    }
+
+    // Step exactly one file layer up the chain
+    detail::DocumentNode* parent_layer = current_block_owner->parent_.get();
+
+    // Create a local context copy to isolate this recursive branch pass
+    Context nested_ctx(ctx) ;
+
+    // Ask the engine to resolve the block starting strictly from the parent layer upward
+    return resolve_and_render_block(ctx.active_block_->name_, parent_layer, nested_ctx);
+
+}
+
 static Variant block(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"name", "template?"}, unpacked) ;
 
     string name = unpacked[0].toString() ;
-    auto it = ctx.blocks_.find(name) ;
-
-     if ( it != ctx.blocks_.end() ) {
-        detail::NamedBlockNodePtr e = it->second ;
-        string res ;
-        e->eval(ctx, res) ;
-        return res ;
-    } else 
-        return Variant::undefined() ;
+   
+    Context nested_ctx(ctx) ;
+    return resolve_and_render_block(name, ctx.root_tmpl_, nested_ctx);
 }
-*/
+
 static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"date?", "timezone?"}, unpacked) ;
@@ -817,6 +835,8 @@ FunctionFactory::FunctionFactory() {
     registerFunction("cycle", cycle) ;
     registerFunction("date",  date) ;
     registerFunction("include",  include) ;
+    registerFunction("parent", parent);
+    registerFunction("block", block);
 
     registerFunction("form_row",  form_row) ;
     registerFunction("form_start",  form_start) ;

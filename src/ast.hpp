@@ -341,15 +341,15 @@ public:
     ContentNode() {}
     virtual ~ContentNode() {}
     // evalute a node using input context and put result in res
-    virtual void eval(Context &ctx, std::string &res) const = 0 ;
+    virtual void eval(Context &ctx, std::string &res) = 0 ;
 
-    const DocumentNode *root() const {
-        const ContentNode *node = this ;
+    DocumentNode *root() {
+        ContentNode *node = this ;
         while ( node->parent_ ) {
             node = node->parent_ ;
         }
 
-        return reinterpret_cast<const DocumentNode *>(node) ;
+        return reinterpret_cast<DocumentNode *>(node) ;
     }
 
     void setTrimLeft(bool s) { trim_left_ = s ; }
@@ -370,7 +370,7 @@ public:
         child->parent_ = this ;
     }
 
-    const NamedBlockNode *findBlock(const std::string &name) const ;
+    NamedBlockNode *findBlock(const std::string &name) ;
 
     virtual std::string tagName() const { return {} ; }
     virtual bool shouldClose() const { return true ; }
@@ -409,7 +409,7 @@ public:
     ForLoopBlockNode(identifier_list_t &&ids, NodePtr target, NodePtr cond = nullptr):
         ids_(ids), target_(target), condition_(cond) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "for" ; }
 
@@ -427,14 +427,13 @@ public:
 class NamedBlockNode: public ContainerNode {
 public:
 
-    NamedBlockNode(const std::string &name, NodePtr expr): name_(name), expr_(expr) {}
+    NamedBlockNode(const std::string &name): name_(name) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "block" ; }
 
     std::string name_ ;
-    NodePtr expr_ ;
 };
 
 typedef std::shared_ptr<NamedBlockNode> NamedBlockNodePtr ;
@@ -444,7 +443,7 @@ public:
 
     RefBlockNode(const std::string &name): name_(name) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     bool shouldClose() const { return false ; }
 
@@ -456,7 +455,7 @@ public:
 
     ExtensionBlockNode(NodePtr src): parent_resource_(src) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "extends" ; }
     bool shouldClose() const { return false ; }
@@ -470,7 +469,7 @@ public:
     IncludeBlockNode(NodePtr source, bool ignore_missing, NodePtr with_expr, bool only):
         source_(source), ignore_missing_(ignore_missing), with_(with_expr), only_flag_(only) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     NodePtr source_, with_ ;
     bool ignore_missing_, only_flag_ ;
@@ -482,7 +481,7 @@ public:
     FormThemeBlockNode(const std::string &name, NodePtr source, bool only):
         name_(name), source_(source), only_flag_(only) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string name_ ;
     NodePtr source_ ;
@@ -495,7 +494,7 @@ public:
     EmbedBlockNode(NodePtr source, bool ignore_missing, NodePtr with_expr, bool only):
         source_(source), ignore_missing_(ignore_missing), with_(with_expr), only_flag_(only) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
     std::string tagName() const override { return "embed" ; }
 
     NodePtr source_, with_ ;
@@ -508,7 +507,7 @@ public:
     WithBlockNode(NodePtr with_expr, bool only):
         with_(with_expr), only_flag_(only) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "with" ; }
 
@@ -521,7 +520,7 @@ public:
 
     AutoEscapeBlockNode(const std::string &mode): mode_(mode) {}
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "autoescape" ; }
 
@@ -533,7 +532,7 @@ public:
 
     VerbatimBlockNode(const std::string &content): content_(content) {}
 
-    void eval(Context &ctx, std::string &res) const override { res.append(content_) ; };
+    void eval(Context &ctx, std::string &res) override { res.append(content_) ; };
 
     std::string tagName() const override { return "autoescape" ; }
 
@@ -545,7 +544,7 @@ public:
 
     IfBlockNode(NodePtr target) { addBlock(target) ; }
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "if" ; }
 
@@ -572,7 +571,7 @@ public:
     AssignmentBlockNode(const identifier_list_t &names, const std::vector<NodePtr> &values): 
     names_(names), values_(values) { }
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "set" ; }
     bool shouldClose() const override { return false ; }
@@ -586,7 +585,7 @@ public:
 
     ApplyBlockNode(const std::vector<FilterNodePtr> &filters): filters_(filters) {} 
    
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "apply" ; }
     bool shouldClose() const override { return true ; }
@@ -599,7 +598,7 @@ public:
 
     FilterBlockNode(const std::string &name, arg_list_t &&args = {}): name_(name), args_(args) { }
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "filter" ; }
 
@@ -612,7 +611,7 @@ public:
 
     MacroBlockNode(const std::string &name, key_val_list_t &&args): name_(name), args_(args) { }
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     Variant call(Context &ctx, const Variant &args) ;
 
@@ -631,7 +630,7 @@ public:
     ImportBlockNode(NodePtr source, const key_alias_list_t &&mapping): source_(source),
         mapping_(mapping) { }
 
-    void eval(Context &ctx, std::string &res) const override ;
+    void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "import" ; }
     bool shouldClose() const { return false ; }
@@ -648,7 +647,7 @@ class RawTextNode: public ContentNode {
 public:
     RawTextNode(const std::string &text): text_(text) {}
 
-    void eval(Context &, std::string &res) const override {
+    void eval(Context &, std::string &res) override {
         res.append(text_) ;
     }
 
@@ -662,25 +661,44 @@ public:
     SubstitutionBlockNode(NodePtr expr):
         expr_(expr) {}
 
-    void eval(Context &ctx, std::string &res) const override;
+    void eval(Context &ctx, std::string &res) override;
 
     NodePtr expr_ ;
 
 };
 
 
-class DocumentNode: public ContainerNode {
+class DocumentNode: public ContainerNode, std::enable_shared_from_this<DocumentNode> {
 public:
 
-    DocumentNode(TemplateRenderer &rdr): renderer_(rdr) {}
+    DocumentNode() = default ;
+    DocumentNode(const std::string &resource): resource_(resource) {} 
 
-    void eval(Context &ctx, std::string &res) const override {
-        for( auto &&e: children_ )
-            e->eval(ctx, res) ;
+    void eval(Context &ctx, std::string &res) override ;
+
+     ExtensionBlockNode* findExtensionNode() const {
+        for (const auto& node : children_) {
+            if (auto extends_node = dynamic_cast<ExtensionBlockNode *>(node.get())) {
+                return extends_node;
+            }
+        }
+        return nullptr; // This template doesn't inherit from anything
+    }
+
+    NamedBlockNode *findBlock(const std::string &name) ;
+
+    void populateBlocks() ;
+
+    bool isChild() const { return parent_ != nullptr ; }
+    void setParentTemplate(DocumentNodePtr parent) {
+        parent_ = parent ;
     }
    
     std::map<std::string, ContentNodePtr> macro_blocks_ ;
-    TemplateRenderer &renderer_ ;
+    std::string resource_ ;
+    DocumentNodePtr parent_ ;
+    std::vector<DocumentNode *> child_docs_ ;
+    std::map<std::string, NamedBlockNode *> blocks_ ;
 };
 
 typedef std::shared_ptr<DocumentNode> DocumentNodePtr ;

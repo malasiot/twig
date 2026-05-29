@@ -39,8 +39,8 @@ bool render_form_block(Context &ctx, const Variant &data, const std::string &pos
     Variant prefixes = data["_prefixes"] ;
     if ( !prefixes.isUndefined() && prefixes.isArray() ) {
 
-        for ( auto it = prefixes.begin() ; it != prefixes.end() ; it++ ) { // TODO: reverse
-            std::string target_row_block = it->toString() + "_" + postfix;
+        for ( auto it = prefixes.rbegin() ; it != prefixes.rend() ; ++it ) { // TODO: reverse
+            std::string target_row_block = it.value().toString() + "_" + postfix;
 
             if ( find_and_render_theme_block(ctx, data, target_row_block, res) ) 
                 return true ;

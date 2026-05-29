@@ -52,6 +52,7 @@ protected:
     friend class detail::IncludeBlockNode ;
     friend class detail::EmbedBlockNode ;
     friend class detail::FormThemeBlockNode ;
+    friend class detail::DocumentNode ;
 
     detail::DocumentNodePtr compile(const std::string &resource) ;
     detail::DocumentNodePtr compileString(const std::string &resource) ;

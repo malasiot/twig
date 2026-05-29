@@ -47,12 +47,13 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
 
     string src = loader_->load(resource);
 
-    detail::Parser parser(src) ;
+    detail::Parser parser(src, this) ;
 
-    detail::DocumentNodePtr root(new detail::DocumentNode(*this)) ;
+    detail::DocumentNodePtr root(new detail::DocumentNode(resource)) ;
 
     try {
-    parser.parse(root, resource) ;
+        parser.parse(root, resource) ;
+        root->populateBlocks() ;
     } catch ( detail::ParseException & e ) {
         stringstream s ;
         s << "Error compiling '" << resource << "': " << e.msg_ << " at " << e.line_ << '(' << e.col_ << ')' ;
@@ -64,12 +65,10 @@ detail::DocumentNodePtr TemplateRenderer::compile(const std::string &resource)
     return root ;
 }
 
-detail::DocumentNodePtr TemplateRenderer::compileString(const std::string &src)
-{
+detail::DocumentNodePtr TemplateRenderer::compileString(const std::string &src) {
+    detail::Parser parser(src, this) ;
 
-    detail::Parser parser(src) ;
-
-    detail::DocumentNodePtr root(new detail::DocumentNode(*this)) ;
+    detail::DocumentNodePtr root(new detail::DocumentNode()) ;
 
     parser.parse(root, "--string--") ;
 

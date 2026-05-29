@@ -410,9 +410,7 @@ bool Parser::parseControlTagDeclaration() {
         if ( !parseName(name) )
             throwException("Expected name") ;
 
-        auto expr = parseExpression() ;
-
-        auto n = std::make_shared<NamedBlockNode>(name, expr) ;
+        auto n = std::make_shared<NamedBlockNode>(name) ;
         addNode(n) ;
         pushControlBlock(n) ;
 
@@ -500,8 +498,9 @@ bool Parser::parseControlTagDeclaration() {
         if ( !e )
             throwException("expecting expression") ;
         auto n = make_shared<ExtensionBlockNode>(e);
-        addNode(n) ;
-        pushControlBlock(n) ;
+        root_->addChild(n);
+        //addNode(n) ;
+      //  pushControlBlock(n) ;
     }  else if ( expect("endextends") ) {
         popControlBlock("extends") ;
     }  else if ( expect("macro") ) {
@@ -540,14 +539,9 @@ bool Parser::parseControlTagDeclaration() {
         } else throwException("name expected") ;
 
     } else if ( expect("from") ) {
-        NodePtr e ;
-        if ( expect("self") )
-            e = nullptr ;
-        else {
-            e = parseFilterExpression() ;
-            if ( !e )
-                throwException("expected expression") ;
-        }
+        NodePtr e = parseFilterExpression() ;
+        if ( !e )
+            throwException("expected expression") ;
 
         if ( expect("import") ) {
             key_alias_list_t imports ;

@@ -42,6 +42,30 @@ TEST_F(TagTest, ForBlockArray) {
    
 }
 
+TEST_F(TagTest, Trim) {
+  TemplateRenderer rdr(nullptr) ;
+
+       vector<pair<string, string>> exprs{ 
+    { R"(XX   {{-  name  }} XX)", "XXFabien XX" },
+     { R"(XX   {{  name  -}} XX)", "XX   FabienXX" },
+     {R"(XX   {%- block  name  -%}{{name}}{%endblock%} XX)", "XXFabienXX"}
+       };
+   
+
+     Variant::Object ctx{{"name", "Fabien"}};
+    
+    try {
+        for ( auto &&expr: exprs ) {
+            string output =  rdr.renderString(expr.first, ctx) ;
+            EXPECT_STREQ(output.c_str(), expr.second.c_str()) ;
+        }
+    
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+   
+}
+
 TEST_F(TagTest, ForBlocDictionary) {
     TemplateRenderer rdr(nullptr) ;
 
@@ -91,7 +115,7 @@ TEST_F(TagTest, SetBlock) {
     { R"({% for item in items %}{% set value = item %}{% endfor %}{{value}})", "" },
     { R"({% set a, b = 1, 3+4 %}{{ a+b }})", "8" },
     { R"({% set a%}Hello World {{items[1]}}{% endset %}{{a}})", "Hello World 2" }
-};
+    };
 
     Variant::Object ctx{{"items", Variant::Array{1, 2, 3}}};
     
@@ -109,10 +133,10 @@ TEST_F(TagTest, SetBlock) {
 TEST_F(TagTest, ApplyBlock) {
     TemplateRenderer rdr(nullptr) ;
 
-      vector<pair<string, string>> exprs{ 
-    { R"({% apply upper %}hello{% endapply %})", "HELLO" },
-     { R"({% apply lower|escape('html') %}<strong>SOME TEXT</strong>{% endapply %})", "&lt;strong&gt;some text&lt;/strong&gt;" },
-};
+    vector<pair<string, string>> exprs{ 
+        { R"({% apply upper %}hello{% endapply %})", "HELLO" },
+        { R"({% apply lower|escape('html') %}<strong>SOME TEXT</strong>{% endapply %})", "&lt;strong&gt;some text&lt;/strong&gt;" },
+    };
     
     try {
         for ( auto &&expr: exprs ) {
@@ -146,31 +170,31 @@ TEST_F(TagTest, VerbatimBlock) {
 TEST_F(TagTest, ExtendsBlock) {
 
     std::shared_ptr<TemplateLoader> loader(new DictTemplateLoader({
-        {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}{% endblock %}</body><footer>{% block footer %}footer{% endblock %}</footer>)"},
-        {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block head %}{{ parent() }}-Head{% endblock %}{% block content %}<h1>Content</h1>{% endblock %})"},
+        {"base1.html.twig", R"({% block head %}<head><title>{% block title %}{% endblock %}</title></head>{% endblock %}<body>{% block content %}parent{% endblock %}</body><footer>{% block footer %}footer{% endblock %} {{block('title')}}</footer>)"},
+        {"child1.html.twig", R"({% extends "base1.html.twig" %}{% block title %}title{% endblock %}{% block content %}<h1>Content-{{ parent() }}-{{ block('title') }}</h1>{% endblock %})"},
         {"base2.html.twig", R"({% for item in seq %}<li>{% block loop_item %}{{ item }}{% endblock %}</li>{% endfor %})"},
         {"child2.html.twig", R"({% extends "base2.html.twig" %}{% block loop_item %}{{loop.index}} - {{ item }}{% endblock %})"},
-        {"base3.html.twig", R"({% block title%}Title{%endblock%} {%ref title%}{% block content %}{% endblock %})"},
+        {"base4.html.twig", R"({% block title %}t0{% endblock %}{%block content%}c0{%endblock%})"},
+        {"base3.html.twig", R"({% extends "base4.html.twig"%} {% block content %}{% endblock %})"},
         {"child3.html.twig", R"({% extends "base3.html.twig" %}{% block title %}title-{{ parent() }}{% endblock %})"}
-    
-    
     })) ;
     TemplateRenderer rdr(loader) ;
    
     try {
-            string output = rdr.render("child1.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "<head><title>title</title></head>-Head<body><h1>Content</h1></body><footer>footer</footer>") ;
+        string output = rdr.render("child1.html.twig", {});
+        EXPECT_STREQ(output.c_str(), "<head><title>title</title></head><body><h1>Content-parent-title</h1></body><footer>footer title</footer>") ;
             
-            output = rdr.render("child2.html.twig", {{"seq", Variant::Array{"One", "Two", "Three"}}});
-            EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
+        output = rdr.render("child2.html.twig", {{"seq", Variant::Array{"One", "Two", "Three"}}});
+        EXPECT_STREQ(output.c_str(), "<li>1 - One</li><li>2 - Two</li><li>3 - Three</li>") ;
 
-            output = rdr.render("child3.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "title-Title title-Title") ;
+        output = rdr.render("child3.html.twig", {});
+        EXPECT_STREQ(output.c_str(), "title-t0") ;
     
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;
     }
 };
+
 
 TEST_F(TagTest, MacroBlock) {
 
@@ -178,6 +202,8 @@ TEST_F(TagTest, MacroBlock) {
         {"base1.html.twig", R"({% macro print_list(data, n=1) %}{%for item in data%}<li>{{loop.index0 + n}}-{{item}}</li>{%endfor%}{% endmacro %})"},
         {"child1.html.twig", R"({% import "base1.html.twig" as util %}{{ util.print_list(['A', 'B'])}})"},
         {"child2.html.twig", R"({% from "base1.html.twig" import print_list as pl %}{{ pl(['A', 'B'],n:3)}})"},
+         {"base2.html.twig", R"({% macro m1(data) %}{{ data | join(',')}}{{ _self.length(data)}}{% endmacro %}{%macro length(data)%}-{{data | length}}{% endmacro %} )"},
+        {"child3.html.twig", R"({% from "base2.html.twig" import m1%}{{ m1(['A', 'B'])}})"},
    
     })) ;
     TemplateRenderer rdr(loader) ;
@@ -187,6 +213,8 @@ TEST_F(TagTest, MacroBlock) {
             EXPECT_STREQ(output.c_str(), "<li>1-A</li><li>2-B</li>") ;
             output = rdr.render("child2.html.twig", {});
             EXPECT_STREQ(output.c_str(), "<li>3-A</li><li>4-B</li>") ;
+            output = rdr.render("child3.html.twig", {});
+            EXPECT_STREQ(output.c_str(), "A,B-2") ;
           
     } catch ( TemplateCompileException &e ) {
         FAIL() << "Compilation failed: " << e.what() ;
@@ -203,14 +231,14 @@ TEST_F(TagTest, IncludeBlock) {
     TemplateRenderer rdr(loader) ;
 
     try {
-            string output = rdr.render("child1.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "Hello Fabien") ;
+        string output = rdr.render("child1.html.twig", {});
+        EXPECT_STREQ(output.c_str(), "Hello Fabien") ;
 
-            output = rdr.render("child2.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "Hello ") ;
+        output = rdr.render("child2.html.twig", {});
+        EXPECT_STREQ(output.c_str(), "Hello ") ;
 
-            output = rdr.render("child3.html.twig", {});
-            EXPECT_STREQ(output.c_str(), "Fabien") ;
+        output = rdr.render("child3.html.twig", {});
+        EXPECT_STREQ(output.c_str(), "Fabien") ;
 
           
     } catch ( TemplateCompileException &e ) {

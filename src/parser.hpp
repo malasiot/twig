@@ -14,7 +14,7 @@ using DocumentNodePtr = std::shared_ptr<DocumentNode> ;
 
 class Parser {
 public:
-    Parser(const std::string &src): src_(src), pos_(src) {}
+    Parser(const std::string &src, TemplateRenderer *rdr): src_(src), pos_(src), rdr_(rdr) {}
 
     bool parse(DocumentNodePtr node, const std::string &resourceId) ;
 
@@ -67,10 +67,10 @@ private:
     std::deque<ContainerNodePtr> stack_ ;
     ContentNodePtr current_ ;
     DocumentNodePtr root_ ;
+    TemplateRenderer *rdr_ ;
     bool trim_prev_raw_block_ = false ;
     bool trim_next_raw_block_ = false ;
-
-
+    
 private:
 
 
