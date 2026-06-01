@@ -30,7 +30,8 @@ add_library(twig SHARED
     src/date_helpers.cpp
     src/format.cpp
     src/form_helper.cpp
-    src/validator.cpp
+    src/validators.cpp
+    src/normalizers.cpp
 
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
@@ -38,15 +39,15 @@ add_library(twig SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/renderer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/date_helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/form_helper.hpp
-    include/twig/validator.hpp
-
-    
 )
 
 target_link_libraries(twig PRIVATE ICU::i18n ICU::uc)
 
 add_executable(twig_exec main.cpp)
 target_link_libraries(twig_exec twig)
+
+add_executable(twig_forms forms.cpp)
+target_link_libraries(twig_forms twig)
 
 # Include tests subdirectory
 add_subdirectory(tests)

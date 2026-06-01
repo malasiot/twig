@@ -3,19 +3,27 @@
 #include <regex>
 #include <stdexcept>
 #include <functional>
+#include <map>
+
+#include <twig/form_helper.hpp>
 
 namespace twig {
 
-    using Dictionary = std::map<std::string, std::string> ;
-// exception thrown by validators
-class FormFieldValidationError: public std::runtime_error {
+class FormFieldValidators {
 public:
 
-    FormFieldValidationError(const std::string &msg): std::runtime_error(msg) {}
+    static FormFieldValidator isBoolean(const std::string &msg = {}) ;
+    static FormFieldValidator isInteger(const std::string &msg = {}) ; 
+    static FormFieldValidator required(const std::string &msg = {}) ; 
+    static FormFieldValidator atLeastNChars(size_t min_len, const std::string &msg = {}) ;
+    static FormFieldValidator atMostNChars(size_t max_len, const std::string &msg = {}) ;
+    static FormFieldValidator matches(const std::regex &rx, const std::string &msg = {}) ;
+    static FormFieldValidator isOneOf(const std::vector<std::string> &choices, const std::string &msg = {}) ;
+    static FormFieldValidator isNoneOf(const std::vector<std::string> &choices, const std::string &msg = {}) ;
+    static FormFieldValidator inRange(int min_val, int max_val, const std::string &msg = {}) ;
 };
 
-class FormField ;
-
+#if 0
 class FormFieldValidator {
 public:
     // Override this to perform custom validation of passed value. On error through a FormFieldValidationError
@@ -43,63 +51,10 @@ private:
     ValidatorCallback cb_ ;
 };
 
-// checks if the field value is empty
+#endif
 
-class NonEmptyValidator: public FormFieldValidator {
-public:
 
-    NonEmptyValidator(const std::string &msg = std::string()):  msg_(msg) {}
-
-    virtual void validate(const std::string &val, const FormField &field) const override ;
-protected:
-    std::string msg_ ;
-private:
-    const static std::string validation_msg_ ;
-};
-
-// check minimum characters
-
-class MinLengthValidator: public FormFieldValidator {
-public:
-    MinLengthValidator(uint min_length, const std::string &msg = std::string()): min_len_(min_length), msg_(msg) {}
-
-    virtual void validate(const std::string &val, const FormField &field) const override ;
-protected:
-    std::string msg_ ;
-    uint min_len_ ;
-private:
-    const static std::string validation_msg_ ;
-};
-
-// check maximum characters
-
-class MaxLengthValidator: public FormFieldValidator {
-public:
-    MaxLengthValidator(uint max_length, const std::string &msg = std::string()): max_len_(max_length), msg_(msg) {}
-
-    virtual void validate(const std::string &val, const FormField &field) const override ;
-protected:
-    std::string msg_ ;
-    uint max_len_ ;
-private:
-    const static std::string validation_msg_ ;
-};
-
-// Validate against regular expression. If negative is set to true it will only validate if the value does not match the expression
-
-class RegexValidator: public FormFieldValidator {
-public:
-
-    RegexValidator(const std::regex &rx, const std::string &msg, bool negative = false): rx_(rx), msg_(msg), is_negative_(false) {}
-
-    virtual void validate(const std::string &val, const FormField &field) const override ;
-protected:
-    std::regex rx_ ;
-    std::string msg_ ;
-    bool is_negative_ ;
-private:
-    const static std::string validation_msg_ ;
-};
+#if 0
 
 class SelectionValidator: public FormFieldValidator {
 public:
@@ -113,7 +68,7 @@ protected:
 private:
     const static std::string validation_msg_ ;
 };
-#if 0
+
 class UploadedFileValidator: public FormFieldValidator {
 public:
     UploadedFileValidator(const std::map<std::string, wspp::server::Request::UploadedFile> &files,

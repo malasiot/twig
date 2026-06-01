@@ -568,6 +568,37 @@ static Variant block(const Variant &args, Context &ctx) {
     }
 }
 
+static Variant html_attr(const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"dict"}, unpacked) ;
+
+    if ( !unpacked[0].isObject() ) return "" ;
+
+    std::ostringstream ss;
+    for( const auto &[key, val]: unpacked[0].toObject() ) {
+        if ( val.isNull() || ( val.isBoolean() && !val.toBoolean()) ) 
+            continue ;
+        else if ( val.isBoolean() && val.toBoolean() ) {
+            ss << ' ' << key;
+        } else if ( val.isArray() ) {
+            ss << ' ' << key << "=\"";
+            bool first = true;
+            for (const auto& item : val) {
+                if ( !first ) ss << " ";
+                // Safely convert items to string context strings
+                ss << item.toString();
+                first = false;
+            }
+            ss << "\"";
+        } else {
+            ss << ' ' << key << "=\"" << escape_html(val.toString()) << "\"";
+        }
+    }
+   
+    string res = ss.str() ;
+    return res.substr(1) ;
+}
+
 static Variant date(const Variant &args, Context &ctx) {
     Variant::Array unpacked ;
     unpack_args(args, {"date?", "timezone?"}, unpacked) ;
@@ -845,6 +876,7 @@ FunctionFactory::FunctionFactory() {
     registerFunction("include",  include) ;
     registerFunction("parent", parent);
     registerFunction("block", block);
+    registerFunction("html_attr", html_attr);
   
     registerTest("divisible by", _divisible_by) ;
     registerTest("even", _even) ;

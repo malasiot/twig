@@ -203,6 +203,8 @@ public:
 
     bool isObject() const { return tag_ == Type::Object ; }
     bool isArray() const { return tag_ == Type::Array ; }
+    bool isBoolean() const { return tag_ == Type::Boolean ; }
+    bool isInteger() const { return tag_ == Type::Integer ; }
     bool isNull() const { return tag_ == Type::Null ; }
     bool isUndefined() const { return tag_ == Type::Undefined ; }
     bool isSafe() const { return ( tag_ != Type::String ) ; }
