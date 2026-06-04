@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include <twig/variant.hpp>
+#include <variant/variant.hpp>
 
 static std::string extractSpecifier(const std::string& fmt, size_t& i) {
     std::string spec = "%";
@@ -45,7 +45,7 @@ static std::string extractSpecifier(const std::string& fmt, size_t& i) {
 }
 
 // Apply a printf specifier to a Variant using snprintf, return the result.
-static std::string applySpecifier(const std::string& spec, const twig::Variant& var) {
+static std::string applySpecifier(const std::string& spec, const Variant& var) {
     char conversion = spec.back();
     char buf[256];
 
@@ -102,7 +102,7 @@ static std::string applySpecifier(const std::string& spec, const twig::Variant& 
     return std::string(buf);
 }
 
-std::string format(const std::string& fmt, const std::vector<twig::Variant>& args) {
+std::string format(const std::string& fmt, const std::vector<Variant>& args) {
     std::ostringstream oss;
     size_t argIdx = 0;
 

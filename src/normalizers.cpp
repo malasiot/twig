@@ -22,7 +22,7 @@ Variant FormFieldNormalizers::toInteger(const Variant &val) {
         return val ;
     if ( val.isString() ) {
         try {
-            return std::stoll(val.toString()) ;
+            return (int64_t)std::stoll(val.toString()) ;
         } catch ( const std::exception & ) {
             return val ;
         }

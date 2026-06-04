@@ -19,7 +19,7 @@
 using namespace std ;
 
 
-extern std::string format(const std::string& fmt, const std::vector<twig::Variant>& args) ;
+extern std::string format(const std::string& fmt, const std::vector<Variant>& args) ;
 
 namespace twig {
 

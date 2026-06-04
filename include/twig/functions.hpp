@@ -4,11 +4,10 @@
 #include <string>
 #include <functional>
 
-#include <twig/variant.hpp>
+#include <variant/variant.hpp>
 #include <twig/context.hpp>
 
 namespace twig {
-
 
 using TemplateFunction = std::function<Variant(const Variant &, Context &ctx)>;
 using TestFunction = std::function<bool(const Variant &, const Variant &, Context &ctx)>;

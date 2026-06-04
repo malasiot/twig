@@ -4,7 +4,7 @@
 #include <memory>
 #include <set>
 
-#include "variant.hpp"
+#include <variant/variant.hpp>
 
 namespace twig {
 namespace detail {

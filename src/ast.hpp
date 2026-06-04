@@ -1,7 +1,7 @@
 #ifndef TWIG_AST_HPP
 #define TWIG_AST_HPP
 
-#include <twig/variant.hpp>
+#include <variant/variant.hpp>
 #include <twig/context.hpp>
 
 #include <memory>

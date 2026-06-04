@@ -1,0 +1,3 @@
+[submodule "libs/variant"]
+	path = libs/variant
+	url = git@github.com:malasiot/variant.git

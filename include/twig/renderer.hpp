@@ -7,7 +7,7 @@
 #include <twig/exceptions.hpp>
 #include <twig/functions.hpp>
 
-#include <twig/variant.hpp>
+#include <variant/variant.hpp>
 #include <mutex>
 
 namespace twig {
