@@ -12,6 +12,8 @@ if(APPLE)
   )
 endif()
 
+
+
 find_package(ICU REQUIRED COMPONENTS i18n uc)
 
 if(NOT TARGET variant)
@@ -23,6 +25,7 @@ if(NOT variant_FOUND)
     
     # Ensure the submodule directory contains a valid build file
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libs/variant/CMakeLists.txt")
+    MESSAGE("ok here")
         SET( VARIANT_BUILD_TESTS Off )
         add_subdirectory(libs/variant)
     else()
@@ -60,6 +63,13 @@ add_library(twig SHARED
 )
 
 target_link_libraries(twig PRIVATE ICU::i18n ICU::uc variant::variant)
+
+add_library(twig::twig ALIAS twig)
+
+target_include_directories(twig INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
 # Include tests subdirectory
 add_subdirectory(tests)
