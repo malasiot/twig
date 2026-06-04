@@ -594,11 +594,16 @@ void RefBlockNode::eval(Context &ctx, string &res) {
 }
 
 void DocumentNode::populateBlocks() {
-    for( const auto &c: children_ ) {
+    std::vector<NamedBlockNode *> blocks ;
+    getAllBlocks(blocks);
+    for ( auto b: blocks ) {
+        blocks_.emplace(b->name_, b);
+    }
+ /*   for( const auto &c: children_ ) {
         NamedBlockNode *n = dynamic_cast<NamedBlockNode *>(c.get()) ;
         if ( n != nullptr )
             blocks_.emplace(n->name_, n) ;
-    }
+    }*/
 }
 
 void ContainerNode::getAllBlocks(std::vector<NamedBlockNode *> &blocks) {

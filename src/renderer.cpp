@@ -24,6 +24,7 @@ string TemplateRenderer::render(const string &resource, const Variant::Object &c
     }
 }
 
+
 string TemplateRenderer::renderString(const string &str, const Variant::Object &ctx) {
     try {
          auto ast = compileString(str) ;
@@ -32,8 +33,10 @@ string TemplateRenderer::renderString(const string &str, const Variant::Object &
          ast->eval(eval_ctx, res) ;
          return res ;
     } catch ( detail::ParseException &e ) {
-        throw TemplateCompileException(e.what()) ;
-        return string() ;   
+        throw TemplateCompileException(string("Error compiling template --string--: ") + e.what()) ;
+        return string() ;
+    } catch ( TemplateLoadException &e ) {
+        throw e ;
     }
 }
 
@@ -68,7 +71,12 @@ detail::DocumentNodePtr TemplateRenderer::compileString(const std::string &src) 
 
     detail::DocumentNodePtr root(new detail::DocumentNode()) ;
 
-    parser.parse(root, "--string--") ;
+    try {
+        parser.parse(root, "--string--") ;
+        root->populateBlocks() ;
+    } catch ( detail::ParseException & e ) {
+        throw TemplateCompileException(e.what()) ;
+    }
 
     return root ;
 }
