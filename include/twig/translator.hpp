@@ -6,8 +6,6 @@
 #include <mutex>
 #include <shared_mutex>
 #include <filesystem>
-#include <unicode/msgfmt.h>
-#include <unicode/locid.h>
 #include <variant/variant.hpp>
 
 namespace twig {
@@ -18,9 +16,9 @@ class TranslationException: public std::runtime_error {
 };
 
 
-struct TranslatableMessage {
-    TranslatableMessage() = default ;
-    explicit TranslatableMessage(const std::string &key, const Variant::Object &args = {}):
+struct Translatable {
+    Translatable() = default ;
+    explicit Translatable(const std::string &key, const Variant::Object &args = {}):
         key_(key), args_(args) {}
         
     bool empty() const { return key_.empty() ; }
@@ -28,8 +26,8 @@ struct TranslatableMessage {
     Variant::Object args_;
 };
 
-inline TranslatableMessage tr(const char *msg, const Variant::Object &args = {}) {
-    return TranslatableMessage{msg};
+inline Translatable tr(const char *msg, const Variant::Object &args = {}) {
+    return Translatable{msg};
 }
 
 class Translator {
@@ -76,7 +74,7 @@ public:
         return translator->translate(msg, params);
     }
 
-    std::string translate(const twig::TranslatableMessage &msg, const std::string &locale) {
+    std::string translate(const twig::Translatable &msg, const std::string &locale) {
         return translate(msg.key_, locale, msg.args_) ;
     }
 };

@@ -603,7 +603,7 @@ static Variant html_attr(const Variant &args, Context &ctx) {
     }
    
     string res = ss.str() ;
-    return res.substr(1) ;
+    return res.empty() ? "" : res.substr(1) ;
 }
 
 static Variant date(const Variant &args, Context &ctx) {

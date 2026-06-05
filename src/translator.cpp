@@ -29,12 +29,15 @@ struct Translator::Impl {
 
     std::string translate(const std::string& key, 
                           const Variant::Object &args) {
+
+        string pattern ;
         auto it = translations_.find(key);
-        if (it == translations_.end()) return key;
+        if (it == translations_.end()) pattern = key ;
+        else pattern = it->second ;
 
         UErrorCode status = U_ZERO_ERROR;
-        icu::UnicodeString pattern = icu::UnicodeString::fromUTF8(it->second);
-        icu::MessageFormat msgFmt(pattern, locale_, status);
+        icu::UnicodeString uc_pattern = icu::UnicodeString::fromUTF8(pattern);
+        icu::MessageFormat msgFmt(uc_pattern, locale_, status);
         if (U_FAILURE(status)) return "Format Error";
 
         int argCount = args.size() ;

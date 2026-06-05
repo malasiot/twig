@@ -469,7 +469,7 @@ public:
     void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "extends" ; }
-    bool shouldClose() const { return false ; }
+    bool shouldClose() const override { return false ; }
 
     NodePtr parent_resource_ ;
 };
@@ -632,7 +632,7 @@ public:
     void eval(Context &ctx, std::string &res) override ;
 
     std::string tagName() const override { return "import" ; }
-    bool shouldClose() const { return false ; }
+    bool shouldClose() const override { return false ; }
 
     bool mapMacro(MacroBlockNode &n, std::string &name) const ;
 

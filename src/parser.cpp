@@ -586,7 +586,8 @@ bool Parser::parseControlTagDeclaration() {
         string mode = "html";
         if ( expect("false") )
             mode = "no" ;
-        else if ( parseString(mode)) ;
+        else if ( parseString(mode)) 
+        ;
         auto n = make_shared<AutoEscapeBlockNode>(mode) ;
         n->setLineAndColumn(saved.line_, saved.column_) ;
 
@@ -1236,7 +1237,7 @@ bool Parser::parseKeyList(identifier_list_t &ids) {
 
 bool Parser::parseExpressionList(std::vector<NodePtr> &l) {
     NodePtr e ;
-    while ( e = parseExpression() ) {
+    while ( (e = parseExpression()) ) {
         l.push_back(e) ;
         if ( !expect(',') ) break ;
     }
@@ -1300,7 +1301,6 @@ NodePtr Parser::parseObject()
     }
 
     return nullptr ;
-
 }
 
 NodePtr Parser::parseBoolean()
