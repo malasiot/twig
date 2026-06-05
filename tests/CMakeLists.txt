@@ -32,5 +32,8 @@ target_link_libraries(twig_tests
 # Include directories
 target_include_directories(twig_tests PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
+target_compile_definitions(twig_tests PRIVATE 
+    DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/"
+)
 # Register tests
 add_test(NAME TwigTests COMMAND twig_tests)

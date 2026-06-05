@@ -10,7 +10,8 @@ string TemplateRenderer::render(const string &resource, const Variant::Object &c
     try {
         auto ast = compile(resource) ;
 
-        Context eval_ctx(*this, ctx) ;
+        Context eval_ctx(*this, ctx, translation_mgr_, locale_) ;
+        
 
         string res ;
         ast->eval(eval_ctx, res) ;
@@ -28,7 +29,7 @@ string TemplateRenderer::render(const string &resource, const Variant::Object &c
 string TemplateRenderer::renderString(const string &str, const Variant::Object &ctx) {
     try {
          auto ast = compileString(str) ;
-         Context eval_ctx(*this, ctx) ;
+         Context eval_ctx(*this, ctx, translation_mgr_, locale_) ;
          string res ;
          ast->eval(eval_ctx, res) ;
          return res ;

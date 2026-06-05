@@ -1,4 +1,9 @@
 {
-    "name": "Name"
-
+    "name": "Name",
+    "welcome": "Welcome {name}",
+    "results": "{count, plural, 
+                          =0 {There are no results.}
+                          one {There is 1 result.}
+                          other {There are # results.}
+                          }"
 }

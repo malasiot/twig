@@ -20,14 +20,39 @@ protected:
 
 
 TEST_F(TranslationTest, TranslatorEngine) {
-    TemplateRenderer rdr(nullptr) ;
    
     TranslationManager mgr ;
-    mgr.loadAllFromDirectory("/Users/malasiot/source/twig/tests/data/translations/");
+    mgr.loadAllFromDirectory(std::string(DATA_DIR) + "translations/");
     string output = mgr.translate("name", "el");
     EXPECT_EQ(output, "Όνομα") ;
-    
+    output = mgr.translate("test", "el");
+    EXPECT_EQ(output, "test") ;
+    output = mgr.translate("welcome", "en", Variant::Object{{"name", "John"}}) ;
+    EXPECT_EQ(output, "Welcome John") ;
+    output = mgr.translate("results", "en", Variant::Object{{"count", 0}}) ;
+    EXPECT_EQ(output, "There are no results.") ;
+    output = mgr.translate("results", "en", Variant::Object{{"count", 10}}) ;
+    EXPECT_EQ(output, "There are 10 results.") ;
 }
+
+TEST_F(TranslationTest, TransFilter) {
+    TranslationManager mgr ;
+    mgr.loadAllFromDirectory(std::string(DATA_DIR) + "translations/");
+
+    TemplateRenderer rdr(nullptr) ;
+    rdr.setTranslationManager(&mgr) ;
+    rdr.setLocale("en_US") ;
+
+    const string tmpl = R"({{ "results" | trans({count: 10}) }})" ;
+
+    try {
+        string output = rdr.renderString(tmpl, Variant::Object()) ;
+        EXPECT_EQ(output, "There are 10 results.") ;
+    } catch ( TemplateCompileException &e ) {
+        FAIL() << "Compilation failed: " << e.what() ;
+    }
+}
+
 
 #if 0
 TEST_F(FunctionTest, DateFilterStatic) {

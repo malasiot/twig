@@ -3,11 +3,12 @@
 #include <fstream>
 #include <mutex>
 #include <shared_mutex>
-#include <thread>
+#include <filesystem>
 #include <unicode/msgfmt.h>
 #include <unicode/locid.h>
 #include <variant/json_parser.hpp>
 
+namespace twig {
 class TranslationException: public std::runtime_error {
     public:
     TranslationException(const std::string &msg): std::runtime_error(msg) {}
@@ -139,3 +140,13 @@ public:
         return translator->translate(msg, params);
     }
 };
+
+struct TranslatableMessage {
+    TranslatableMessage(const std::string &key, const Variant::Object &args = {}):
+        key_(key), args_(args) {}
+        
+    std::string key_ ; // e.g., "cart.items_count"
+    Variant::Object args_;
+};
+
+}

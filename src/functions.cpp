@@ -2,6 +2,8 @@
 #include <twig/date_helpers.hpp>
 #include <twig/exceptions.hpp>
 #include <twig/renderer.hpp>
+#include <twig/translator.hpp>
+
 #include "ast.hpp"
 
 #include <algorithm>
@@ -15,6 +17,8 @@
 
 #include <unicode/unistr.h>
 #include <unicode/locid.h>
+
+
 
 using namespace std ;
 
@@ -796,6 +800,19 @@ static Variant _slice(const Variant &target, const Variant &args, Context &ctx) 
 
 }
 
+static Variant _trans(const Variant &target, const Variant &args, Context &ctx) {
+    Variant::Array unpacked ;
+    unpack_args(args, {"params?"}, unpacked) ;
+
+    string msg = target.toString() ;
+    auto params = unpacked[0] ;
+    if ( ctx.mgr_ != nullptr )
+        return ctx.mgr_->translate(msg, ctx.locale_,
+            params.isUndefined() ? Variant::Object{} : params.toObject() );
+    else
+        return msg ;
+}
+
 static bool _even(const Variant &target, const Variant &args, Context &ctx) {
     return target.toInteger() % 2 == 0 ;
 }
@@ -869,6 +886,7 @@ FunctionFactory::FunctionFactory() {
     registerFilter("reduce", _reduce) ;
     registerFilter("round", _round) ;
     registerFilter("slice", _slice) ;
+    registerFilter("trans", _trans) ;
 
     registerFunction("range", range);
     registerFunction("cycle", cycle) ;

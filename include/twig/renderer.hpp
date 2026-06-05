@@ -40,6 +40,11 @@ public:
         cache_ = cache ;
     }
 
+    void setLocale(const std::string &locale) { locale_ = locale ; }
+
+    void setTranslationManager(TranslationManager *mgr) {
+        translation_mgr_ = mgr ;
+    }
 
     static FunctionFactory &getFunctionFactory() { return FunctionFactory::instance() ; }
 
@@ -60,6 +65,8 @@ protected:
     bool debug_ = false, ignore_missing_ = false ;
     std::shared_ptr<TemplateLoader> loader_ ;
     std::shared_ptr<Cache> cache_ ;
+    std::string locale_ = "en_US";
+    TranslationManager *translation_mgr_ = nullptr;
 } ;
 
 class Cache {

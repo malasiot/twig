@@ -673,7 +673,8 @@ void MacroBlockNode::mapArguments(const Variant &args, Context &ctx) {
 Variant MacroBlockNode::call(Context &ctx, const Variant &args) {
 // macros should start from the empty context
 // we only add the _self key
-    Context mctx(ctx.rdr_, {}) ;
+    Context mctx(ctx) ;
+    mctx.data_.clear() ;
     mctx.data_["_self"] = ctx.data_["_self"] ; 
 
     try {
@@ -823,7 +824,8 @@ void IncludeBlockNode::eval(Context &ctx, string &res)
     // create new context either inheriting parent one or empty and extend with key/values if any
 
     if ( only_flag_ ) {
-        Context cctx(ctx.rdr_, {}) ;
+        Context cctx(ctx) ;
+        cctx.data_.clear() ;
         cctx.data().insert(ctx_extension.begin(), ctx_extension.end()) ;
         doc->eval(cctx, res) ;
     } else {
@@ -852,7 +854,8 @@ void WithBlockNode::eval(Context &ctx, string &res)
     // create new context either inheriting parent one or empty and extend with key/values if any
 
     if ( only_flag_ ) {
-        Context cctx(ctx.rdr_, {}) ;
+        Context cctx(ctx) ;
+        cctx.data_.clear() ;
         cctx.data().insert(ctx_extension.begin(), ctx_extension.end()) ;
         for( auto &&c: children_ )
             c->eval(cctx, res) ;
@@ -1073,10 +1076,10 @@ void EmbedBlockNode::eval(Context &ctx, string &res)
 
     // create new context either inheriting parent one or empty and extend with key/values if any
 
-    Context cctx(ctx.rdr_, {});
-
+    Context cctx(ctx);
+   
     if ( only_flag_ ) {
-        Context cctx(ctx.rdr_, {}) ;
+        cctx.data_.clear() ;
         cctx.data().insert(ctx_extension.begin(), ctx_extension.end()) ;   
     } else {
         for( auto &&e: ctx_extension )

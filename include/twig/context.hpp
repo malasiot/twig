@@ -17,12 +17,14 @@ typedef std::shared_ptr<DocumentNode> DocumentNodePtr ;
 }
 
 class TemplateRenderer ;
+class TranslationManager ;
 
 class Context {
 public:
-    Context(TemplateRenderer &rdr, const Variant::Object &data):  rdr_(rdr), data_(data) {}
+    Context(TemplateRenderer &rdr, const Variant::Object &data, TranslationManager *mgr, const std::string &locale):
+      rdr_(rdr), data_(data), mgr_(mgr), locale_(locale) {}
     Context() = delete ;
-
+    
     Variant::Object &data() {
         return data_ ;
     }
@@ -44,7 +46,8 @@ public:
 
     Variant::Object data_ ;
     TemplateRenderer &rdr_ ;
-    std::string escape_mode_ = "no";
+    TranslationManager *mgr_ = nullptr;
+    std::string escape_mode_ = "no", locale_ = "en_US";
     detail::DocumentNode *root_tmpl_ = nullptr ;
     detail::NamedBlockNode *active_block_  = nullptr;
 };
