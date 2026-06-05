@@ -38,7 +38,8 @@ endif()
 
 enable_testing()
 
-include_directories(include ${ICU_INCLUDE_DIRS})
+MESSAGE(${ICU_INCLUDE_DIRS})
+include_directories(include )
 
 add_library(twig SHARED
     src/parser.cpp
@@ -48,18 +49,16 @@ add_library(twig SHARED
     src/functions.cpp
     src/renderer.cpp
     src/loader.cpp
-#    src/json_parser.cpp
     src/date_helpers.cpp
     src/format.cpp
- #   src/form_helper.cpp
- #   src/validators.cpp
- #   src/normalizers.cpp
+    src/translator.cpp
 
 #    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/exceptions.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/renderer.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/date_helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/translator.hpp
 )
 
 target_link_libraries(twig PRIVATE ICU::i18n ICU::uc variant::variant)
