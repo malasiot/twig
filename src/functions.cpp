@@ -556,6 +556,7 @@ static Variant parent(const Variant &args, Context &ctx) {
         current_block_owner->throwException(e.what()) ;
     }
 
+    return std::string() ;
 }
 
 static Variant block(const Variant &args, Context &ctx) {
@@ -569,7 +570,9 @@ static Variant block(const Variant &args, Context &ctx) {
         return resolve_and_render_block(name, ctx.root_tmpl_, nested_ctx);
     } catch ( TemplateRuntimeException &e ) {
         ctx.root_tmpl_->throwException(e.what()) ;
+        
     }
+    return std::string() ;
 }
 
 static Variant html_attr(const Variant &args, Context &ctx) {

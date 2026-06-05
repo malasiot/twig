@@ -34,6 +34,8 @@ Variant BooleanOperator::eval(Context &ctx) {
         return ( lhs_->eval(ctx).toBoolean() && rhs_->eval(ctx).toBoolean() ) ;
     case Or:
         return ( lhs_->eval(ctx).toBoolean() || rhs_->eval(ctx).toBoolean() ) ;
+    default:
+        return false ;
     }
 }
 
@@ -55,7 +57,9 @@ static bool compare_numbers(int64_t lhs, int64_t rhs, ComparisonPredicate::Type 
         return lhs >= rhs ;
     case ComparisonPredicate::Greater:
         return lhs > rhs ;
+    default: return false ;
     }
+    
 }
 
 static bool compare_numbers(const Variant &lhs, const Variant &rhs, ComparisonPredicate::Type op) {
@@ -396,6 +400,8 @@ Variant RangeOperatorNode::eval(Context &ctx)
         return res ;
     } else 
         throw TemplateRuntimeException("Invalid operands for range operator") ;
+
+    return string() ;
 }
 
 Variant InvokeTestNode::eval(Context &ctx) {
@@ -882,6 +888,8 @@ static bool compare_numbers(double lhs, double rhs, ComparisonPredicate::Type op
         return lhs >= rhs ;
     case ComparisonPredicate::Greater:
         return lhs > rhs ;
+    default:
+        return false ;
     }
 }
 

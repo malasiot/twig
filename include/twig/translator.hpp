@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <unordered_map>
 #include <fstream>
@@ -6,80 +8,45 @@
 #include <filesystem>
 #include <unicode/msgfmt.h>
 #include <unicode/locid.h>
-#include <variant/json_parser.hpp>
+#include <variant/variant.hpp>
 
 namespace twig {
+
 class TranslationException: public std::runtime_error {
     public:
     TranslationException(const std::string &msg): std::runtime_error(msg) {}
 };
 
+
+struct TranslatableMessage {
+    TranslatableMessage() = default ;
+    explicit TranslatableMessage(const std::string &key, const Variant::Object &args = {}):
+        key_(key), args_(args) {}
+        
+    bool empty() const { return key_.empty() ; }
+    std::string key_ ; 
+    Variant::Object args_;
+};
+
+inline TranslatableMessage tr(const char *msg, const Variant::Object &args = {}) {
+    return TranslatableMessage{msg};
+}
+
 class Translator {
 private:
-    std::string locale_str_;
-    icu::Locale locale_;
-    std::unordered_map<std::string, std::string> translations_;
+    struct Impl ;
+    std::unique_ptr<Impl> impl_ ;
 
 public:
     // Pass the locale string during construction
-    Translator(const std::string& target_locale) 
-        : locale_str_(target_locale), locale_(target_locale.c_str()) {}
+    Translator(const std::string& target_locale) ;
 
-    std::string getLocale() const { return locale_str_; }
+    std::string getLocale() const ;
 
-    bool loadTranslations(const std::string& filePath) {
-        std::ifstream file(filePath);
-        if (!file.is_open()) return false;
-        Variant j = Variant::fromJSONFile(filePath) ;
-        
-        for (auto& [key, value] : j.toObject()) {
-            if (value.isString()) {
-                translations_[key] = value.toString();
-            }
-        }
-        return true;
-    }
+    bool loadTranslations(const std::string& filePath) ;
 
     std::string translate(const std::string& key, 
-                          const Variant::Object &args = {}) {
-        auto it = translations_.find(key);
-        if (it == translations_.end()) return key;
-
-        UErrorCode status = U_ZERO_ERROR;
-        icu::UnicodeString pattern = icu::UnicodeString::fromUTF8(it->second);
-        icu::MessageFormat msgFmt(pattern, locale_, status);
-        if (U_FAILURE(status)) return "Format Error";
-
-        int argCount = args.size() ;
-        auto argumentNames = std::make_unique<icu::UnicodeString[]>(argCount);
-        auto arguments = std::make_unique<icu::Formattable[]>(argCount);
-
-        int i = 0;
-        for (const auto& [name, val] : args) {
-            argumentNames[i] = icu::UnicodeString::fromUTF8(name);
-            if ( val.type() == Variant::Type::Float )
-                arguments[i] = icu::Formattable(val.toFloat());
-            else if ( val.isInteger() )
-                arguments[i] = icu::Formattable(val.toInteger()) ;
-            else 
-                arguments[i] = icu::Formattable(icu::UnicodeString::fromUTF8(val.toString()));
-            i++;
-        }
-
-        icu::UnicodeString result;
-        icu::FieldPosition pos(icu::FieldPosition::DONT_CARE);
-
-        msgFmt.format(argumentNames.get(), arguments.get(), argCount, result, status);
-
-        if (U_FAILURE(status)) {
-            throw TranslationException("Evaluation Error: " + std::string(u_errorName(status)));
-        }
-     
-
-        std::string utf8Result;
-        result.toUTF8String(utf8Result);
-        return utf8Result;
-    }
+                          const Variant::Object &args = {}) ;
 };
 
 
@@ -97,56 +64,23 @@ public:
     TranslationManager& operator=(const TranslationManager&) = delete;
 
     // Discover and load all translation JSON files inside a folder (e.g., locales/en_US.json)
-    void loadAllFromDirectory(const std::string& dirPath) {
-        std::unique_lock<std::shared_mutex> lock(mutex);
-        for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
-            if (entry.path().extension() == ".json") {
-                std::string locale_name = entry.path().stem().string(); // e.g., "fr_FR"
-                
-                auto translator = std::make_shared<Translator>(locale_name);
+    void loadAllFromDirectory(const std::string& dirPath) ;
 
-                if ( translator->loadTranslations(entry.path().string()) ) {
-                    translators_[locale_name] = translator;
-                }
-            }
-        }
-    }
+    std::vector<std::string> getSupportedLocales() const ;
 
     // Thread-safe lookup for a specific translator
-    std::shared_ptr<Translator> getTranslator(const std::string& requested_locale) {
-        std::shared_lock<std::shared_mutex> lock(mutex_);
-        
-        // 1. Match exact requested locale (e.g., "en_US")
-        auto it = translators_.find(requested_locale);
-        if (it != translators_.end()) return it->second;
-
-        // 2. Loose fallback fallback: Match language prefix (e.g., "en" from "en_GB")
-        if ( requested_locale.length() >= 2 ) {
-            std::string lang_prefix = requested_locale.substr(0, 2);
-            for (const auto& [name, translator] : translators_) {
-                if ( name.substr(0, 2) == lang_prefix ) return translator;
-            }
-        }
-
-        auto fallback_it = translators_.find(default_locale_);
-        if ( fallback_it != translators_.end() ) return fallback_it->second;
-
-        // empty translator
-        return std::make_shared<Translator>(default_locale_);
-    }
+    std::shared_ptr<Translator> getTranslator(const std::string& requested_locale) ;
 
     std::string translate(const std::string &msg, const std::string &locale, const Variant::Object &params = {}) {
         auto translator = getTranslator(locale);
         return translator->translate(msg, params);
     }
+
+    std::string translate(const twig::TranslatableMessage &msg, const std::string &locale) {
+        return translate(msg.key_, locale, msg.args_) ;
+    }
 };
 
-struct TranslatableMessage {
-    TranslatableMessage(const std::string &key, const Variant::Object &args = {}):
-        key_(key), args_(args) {}
-        
-    std::string key_ ; // e.g., "cart.items_count"
-    Variant::Object args_;
-};
+
 
 }

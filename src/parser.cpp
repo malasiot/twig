@@ -787,6 +787,7 @@ bool Parser::parseArgumentList(arg_list_t &args) {
 
         if ( !expect(',') ) break ;
     }
+    return true ;
 }
 
 bool Parser::parseFilterChain(std::vector<FilterNodePtr> &filters) {
