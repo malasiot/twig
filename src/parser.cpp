@@ -853,12 +853,15 @@ NodePtr Parser::parseAssignment() {
     string name ;
     Position cur = pos_ ;
     if ( parseName(name) ) {
+       
         if ( expect('=') ) {
-            auto expr = parseExpression() ;
-            if ( !expr )
-                throwException("expected expression after '=' in assignment") ;
-            identifier_list_t args{ name } ;
-            return NodePtr(new AssignmentNode(name, expr)) ;
+            if ( *pos_ != '=' ) {
+                auto expr = parseExpression() ;
+                if ( !expr )
+                    throwException("expected expression after '=' in assignment") ;
+                identifier_list_t args{ name } ;
+                return NodePtr(new AssignmentNode(name, expr)) ;
+            } 
         }
     } else if ( expect('[') ){
         identifier_list_t args ;
@@ -972,6 +975,10 @@ NodePtr Parser::parseComparison() {
         type = ComparisonPredicate::NotIdentical ;
     else if ( expect("===") )
         type = ComparisonPredicate::Identical ;
+    else if ( expect(">=") )
+        type = ComparisonPredicate::GreaterOrEqual ;
+    else if ( expect("<=") )
+        type = ComparisonPredicate::LessOrEqual ;
     else if ( expect("!=") )
         type = ComparisonPredicate::NotEqual ;
     else if ( expect("==") )
@@ -980,10 +987,6 @@ NodePtr Parser::parseComparison() {
         type = ComparisonPredicate::Less ;
     else if ( expect('>') )
         type = ComparisonPredicate::Greater ;
-    else if ( expect(">=") )
-        type = ComparisonPredicate::GreaterOrEqual ;
-    else if ( expect("<=") )
-        type = ComparisonPredicate::LessOrEqual ;
     else if ( expect("matches") ) {
         string rx ;
         if ( parseRegexString(rx) ) {
