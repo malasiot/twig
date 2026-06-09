@@ -53,6 +53,10 @@ add_library(twig SHARED
     src/format.cpp
     src/translator.cpp
 
+    src/forms/form_builder.cpp
+    src/forms/normalizers.cpp
+    src/forms/validators.cpp
+
 #    ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/variant.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/functions.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/twig/exceptions.hpp
